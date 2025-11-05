@@ -147,16 +147,31 @@ const History = () => {
                 
                 // Handle bullet points
                 if (paragraph.trim().startsWith('•') || paragraph.trim().startsWith('-') || paragraph.trim().match(/^\d+\./)) {
+                  // Process bullet point content for bold formatting
+                  const bulletContent = paragraph.replace(/^[•\-]\s*/, '').replace(/^\d+\.\s*/, '');
+                  const formattedBullet = bulletContent.split(/(`[^`]+`|'[^']+'|\*\*[^*]+\*\*)/).map((part, i) => {
+                    if ((part.startsWith('`') && part.endsWith('`')) || (part.startsWith("'") && part.endsWith("'"))) {
+                      return <strong key={i} className="text-white font-bold">{part.slice(1, -1)}</strong>;
+                    }
+                    if (part.startsWith('**') && part.endsWith('**')) {
+                      return <strong key={i} className="text-white font-bold">{part.slice(2, -2)}</strong>;
+                    }
+                    return part;
+                  });
+                  
                   return (
                     <div key={idx} className="flex gap-2 my-2">
                       <span className="text-blue-400 mt-1">•</span>
-                      <span className="flex-1">{paragraph.replace(/^[•\-]\s*/, '').replace(/^\d+\.\s*/, '')}</span>
+                      <span className="flex-1">{formattedBullet}</span>
                     </div>
                   );
                 }
                 
-                // Handle bold text **text**
-                const formattedText = paragraph.split(/(\*\*.*?\*\*)/).map((part, i) => {
+                // Handle bold text with backticks `text`, single quotes 'text', or **text**
+                const formattedText = paragraph.split(/(`[^`]+`|'[^']+'|\*\*[^*]+\*\*)/).map((part, i) => {
+                  if ((part.startsWith('`') && part.endsWith('`')) || (part.startsWith("'") && part.endsWith("'"))) {
+                    return <strong key={i} className="text-white font-bold">{part.slice(1, -1)}</strong>;
+                  }
                   if (part.startsWith('**') && part.endsWith('**')) {
                     return <strong key={i} className="text-white font-bold">{part.slice(2, -2)}</strong>;
                   }
@@ -178,18 +193,52 @@ const History = () => {
               {selectedProblem.examples.map((example, index) => (
                 <div key={index} className="bg-[#00303d]/40 border border-blue-500/20 rounded-lg p-3">
                   <div className="grid md:grid-cols-2 gap-3 mb-2">
-                    <div>
-                      <p className="text-cyan-400 font-semibold text-sm mb-1">Input</p>
+                    <div className="relative group">
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-cyan-400 font-semibold text-sm">Input</p>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(example.input);
+                            showToast.success('Input copied!');
+                          }}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-cyan-500/20 rounded"
+                          title="Copy input"
+                        >
+                          <Copy size={12} className="text-cyan-400" />
+                        </button>
+                      </div>
                       <p className="text-gray-300 font-mono text-sm break-words">{example.input}</p>
                     </div>
-                    <div>
-                      <p className="text-green-400 font-semibold text-sm mb-1">Output</p>
+                    <div className="relative group">
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-green-400 font-semibold text-sm">Output</p>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(example.output);
+                            showToast.success('Output copied!');
+                          }}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-green-500/20 rounded"
+                          title="Copy output"
+                        >
+                          <Copy size={12} className="text-green-400" />
+                        </button>
+                      </div>
                       <p className="text-gray-300 font-mono text-sm break-words">{example.output}</p>
                     </div>
                   </div>
                   {example.explanation && (
                     <div className="border-t border-blue-500/10 pt-2">
-                      <p className="text-gray-400 text-sm whitespace-pre-wrap break-words">{example.explanation}</p>
+                      <p className="text-gray-400 text-sm whitespace-pre-wrap break-words">
+                        {example.explanation.split(/(`[^`]+`|'[^']+'|\*\*[^*]+\*\*)/).map((part, i) => {
+                          if ((part.startsWith('`') && part.endsWith('`')) || (part.startsWith("'") && part.endsWith("'"))) {
+                            return <strong key={i} className="text-white font-bold">{part.slice(1, -1)}</strong>;
+                          }
+                          if (part.startsWith('**') && part.endsWith('**')) {
+                            return <strong key={i} className="text-white font-bold">{part.slice(2, -2)}</strong>;
+                          }
+                          return part;
+                        })}
+                      </p>
                     </div>
                   )}
                 </div>

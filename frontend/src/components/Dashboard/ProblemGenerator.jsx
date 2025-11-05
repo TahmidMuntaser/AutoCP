@@ -22,6 +22,8 @@ const ProblemGenerator = () => {
     suggestion: ''
   });
   const [loading, setLoading] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [progressMessage, setProgressMessage] = useState('');
   const [step, setStep] = useState(1);
   const [generatedProblem, setGeneratedProblem] = useState(null);
   const [isFavorited, setIsFavorited] = useState(false);
@@ -75,15 +77,40 @@ const ProblemGenerator = () => {
     }
 
     setLoading(true);
+    setProgress(0);
+    setProgressMessage('Initializing AI...');
     const toastId = showToast.loading('Generating problem with AI...');
 
     try {
+      // Simulate progress stages
+      const progressStages = [
+        { percent: 10, message: 'Analyzing topics and difficulty...' },
+        { percent: 30, message: 'Crafting problem statement...' },
+        { percent: 50, message: 'Generating test cases...' },
+        { percent: 70, message: 'Creating hints and insights...' },
+        { percent: 90, message: 'Finalizing problem...' }
+      ];
+
+      // Start progress simulation
+      let currentStage = 0;
+      const progressInterval = setInterval(() => {
+        if (currentStage < progressStages.length) {
+          setProgress(progressStages[currentStage].percent);
+          setProgressMessage(progressStages[currentStage].message);
+          currentStage++;
+        }
+      }, 800);
+
       // Call the API to generate problem
       const response = await generateProblem({
         topics: formData.topics,
         rating: formData.rating,
         suggestion: formData.suggestion
       });
+
+      clearInterval(progressInterval);
+      setProgress(100);
+      setProgressMessage('Problem generated successfully!');
 
       if (response.success) {
         const problem = response.data;
@@ -116,6 +143,8 @@ const ProblemGenerator = () => {
       console.error('Error generating problem:', error);
       showToast.dismiss(toastId);
       showToast.error(error.message || 'Failed to generate problem. Please try again.');
+      setProgress(0);
+      setProgressMessage('');
     } finally {
       setLoading(false);
     }
@@ -280,16 +309,31 @@ const ProblemGenerator = () => {
                     
                     // Handle bullet points
                     if (paragraph.trim().startsWith('•') || paragraph.trim().startsWith('-') || paragraph.trim().match(/^\d+\./)) {
+                      // Process bullet point content for bold formatting
+                      const bulletContent = paragraph.replace(/^[•\-]\s*/, '').replace(/^\d+\.\s*/, '');
+                      const formattedBullet = bulletContent.split(/(`[^`]+`|'[^']+'|\*\*[^*]+\*\*)/).map((part, i) => {
+                        if ((part.startsWith('`') && part.endsWith('`')) || (part.startsWith("'") && part.endsWith("'"))) {
+                          return <strong key={i} className="text-white font-bold">{part.slice(1, -1)}</strong>;
+                        }
+                        if (part.startsWith('**') && part.endsWith('**')) {
+                          return <strong key={i} className="text-white font-bold">{part.slice(2, -2)}</strong>;
+                        }
+                        return part;
+                      });
+                      
                       return (
                         <div key={idx} className="flex gap-2 my-2">
                           <span className="text-blue-400 mt-1">•</span>
-                          <span className="flex-1">{paragraph.replace(/^[•\-]\s*/, '').replace(/^\d+\.\s*/, '')}</span>
+                          <span className="flex-1">{formattedBullet}</span>
                         </div>
                       );
                     }
                     
-                    // Handle bold text **text**
-                    const formattedText = paragraph.split(/(\*\*.*?\*\*)/).map((part, i) => {
+                    // Handle bold text with backticks `text`, single quotes 'text', or **text**
+                    const formattedText = paragraph.split(/(`[^`]+`|'[^']+'|\*\*[^*]+\*\*)/).map((part, i) => {
+                      if ((part.startsWith('`') && part.endsWith('`')) || (part.startsWith("'") && part.endsWith("'"))) {
+                        return <strong key={i} className="text-white font-bold">{part.slice(1, -1)}</strong>;
+                      }
                       if (part.startsWith('**') && part.endsWith('**')) {
                         return <strong key={i} className="text-white font-bold">{part.slice(2, -2)}</strong>;
                       }
@@ -312,19 +356,53 @@ const ProblemGenerator = () => {
                     <div key={idx} className="bg-[#002029]/50 border border-[#004052] rounded-xl p-4 hover:border-purple-500/40 transition-all">
                       <p className="text-xs text-purple-400 font-bold mb-3 uppercase tracking-wider">Example {idx + 1}</p>
                       <div className="grid grid-cols-2 gap-3">
-                        <div className="bg-[#002029]/50 rounded-lg p-3 border border-blue-500/20">
-                          <p className="text-blue-400 text-xs font-bold mb-2 uppercase">Input</p>
+                        <div className="bg-[#002029]/50 rounded-lg p-3 border border-blue-500/20 relative group">
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-blue-400 text-xs font-bold uppercase">Input</p>
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(example.input);
+                                showToast.success('Input copied!');
+                              }}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-blue-500/20 rounded"
+                              title="Copy input"
+                            >
+                              <Copy size={14} className="text-blue-400" />
+                            </button>
+                          </div>
                           <p className="text-blue-300 font-mono text-sm break-words">{example.input}</p>
                         </div>
-                        <div className="bg-[#002029]/50 rounded-lg p-3 border border-green-500/20">
-                          <p className="text-green-400 text-xs font-bold mb-2 uppercase">Output</p>
+                        <div className="bg-[#002029]/50 rounded-lg p-3 border border-green-500/20 relative group">
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-green-400 text-xs font-bold uppercase">Output</p>
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(example.output);
+                                showToast.success('Output copied!');
+                              }}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-green-500/20 rounded"
+                              title="Copy output"
+                            >
+                              <Copy size={14} className="text-green-400" />
+                            </button>
+                          </div>
                           <p className="text-green-300 font-mono text-sm break-words">{example.output}</p>
                         </div>
                       </div>
                       {example.explanation && (
                         <div className="mt-3 pt-3 border-t border-[#004052]">
                           <p className="text-gray-400 text-xs font-bold mb-2 uppercase">Explanation</p>
-                          <p className="text-gray-300 text-sm whitespace-pre-wrap break-words">{example.explanation}</p>
+                          <p className="text-gray-300 text-sm whitespace-pre-wrap break-words">
+                            {example.explanation.split(/(`[^`]+`|'[^']+'|\*\*[^*]+\*\*)/).map((part, i) => {
+                              if ((part.startsWith('`') && part.endsWith('`')) || (part.startsWith("'") && part.endsWith("'"))) {
+                                return <strong key={i} className="text-white font-bold">{part.slice(1, -1)}</strong>;
+                              }
+                              if (part.startsWith('**') && part.endsWith('**')) {
+                                return <strong key={i} className="text-white font-bold">{part.slice(2, -2)}</strong>;
+                              }
+                              return part;
+                            })}
+                          </p>
                         </div>
                       )}
                     </div>
@@ -350,7 +428,17 @@ const ProblemGenerator = () => {
                     <div className="w-1 h-6 bg-cyan-400 rounded-full"></div>
                     <h2 className="text-sm font-bold text-white uppercase tracking-wider">Approach</h2>
                   </div>
-                  <p className="text-gray-300 leading-relaxed text-sm whitespace-pre-wrap break-words">{generatedProblem.approach}</p>
+                  <div className="text-gray-300 leading-relaxed text-sm whitespace-pre-wrap break-words">
+                    {generatedProblem.approach.split(/(`[^`]+`|'[^']+'|\*\*[^*]+\*\*)/).map((part, i) => {
+                      if ((part.startsWith('`') && part.endsWith('`')) || (part.startsWith("'") && part.endsWith("'"))) {
+                        return <strong key={i} className="text-white font-bold">{part.slice(1, -1)}</strong>;
+                      }
+                      if (part.startsWith('**') && part.endsWith('**')) {
+                        return <strong key={i} className="text-white font-bold">{part.slice(2, -2)}</strong>;
+                      }
+                      return part;
+                    })}
+                  </div>
                 </div>
               )}
 
@@ -365,7 +453,17 @@ const ProblemGenerator = () => {
                     {generatedProblem.keyInsights.map((insight, idx) => (
                       <li key={idx} className="flex items-start gap-3">
                         <span className="text-pink-400 mt-1">•</span>
-                        <span className="text-gray-300 text-sm flex-1 break-words">{insight}</span>
+                        <span className="text-gray-300 text-sm flex-1 break-words">
+                          {insight.split(/(`[^`]+`|'[^']+'|\*\*[^*]+\*\*)/).map((part, i) => {
+                            if ((part.startsWith('`') && part.endsWith('`')) || (part.startsWith("'") && part.endsWith("'"))) {
+                              return <strong key={i} className="text-white font-bold">{part.slice(1, -1)}</strong>;
+                            }
+                            if (part.startsWith('**') && part.endsWith('**')) {
+                              return <strong key={i} className="text-white font-bold">{part.slice(2, -2)}</strong>;
+                            }
+                            return part;
+                          })}
+                        </span>
                       </li>
                     ))}
                   </ul>
@@ -383,7 +481,17 @@ const ProblemGenerator = () => {
                     {generatedProblem.hints.map((hint, idx) => (
                       <div key={idx} className="bg-[#002029]/50 border border-[#004052] rounded-lg p-3">
                         <p className="text-orange-400 text-xs font-bold mb-1">Hint {idx + 1}</p>
-                        <p className="text-gray-300 text-sm break-words whitespace-pre-wrap">{hint}</p>
+                        <p className="text-gray-300 text-sm break-words whitespace-pre-wrap">
+                          {hint.split(/(`[^`]+`|'[^']+'|\*\*[^*]+\*\*)/).map((part, i) => {
+                            if ((part.startsWith('`') && part.endsWith('`')) || (part.startsWith("'") && part.endsWith("'"))) {
+                              return <strong key={i} className="text-white font-bold">{part.slice(1, -1)}</strong>;
+                            }
+                            if (part.startsWith('**') && part.endsWith('**')) {
+                              return <strong key={i} className="text-white font-bold">{part.slice(2, -2)}</strong>;
+                            }
+                            return part;
+                          })}
+                        </p>
                       </div>
                     ))}
                   </div>
@@ -635,23 +743,43 @@ const ProblemGenerator = () => {
                   Next →
                 </button>
               ) : (
-                <button
-                  onClick={handleGenerateProblem}
-                  disabled={loading || formData.topics.length === 0 || !formData.rating}
-                  className="flex-1 flex items-center justify-center gap-2 px-6 py-2 bg-[#004052] hover:bg-[#005066] text-white font-bold text-sm rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
-                >
-                  {loading ? (
-                    <>
-                      <Loader2 size={16} className="animate-spin" />
-                      <span>Creating...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles size={16} />
-                      <span>Generate!</span>
-                    </>
+                <div className="flex-1">
+                  <button
+                    onClick={handleGenerateProblem}
+                    disabled={loading || formData.topics.length === 0 || !formData.rating}
+                    className="w-full flex items-center justify-center gap-2 px-6 py-2 bg-[#004052] hover:bg-[#005066] text-white font-bold text-sm rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 size={16} className="animate-spin" />
+                        <span>Creating...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles size={16} />
+                        <span>Generate!</span>
+                      </>
+                    )}
+                  </button>
+                  
+                  {/* Progress Bar */}
+                  {loading && (
+                    <div className="mt-4 space-y-2">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-gray-400">{progressMessage}</span>
+                        <span className="text-blue-400 font-bold">{progress}%</span>
+                      </div>
+                      <div className="w-full h-2 bg-[#002029] rounded-full overflow-hidden border border-[#004052]">
+                        <div 
+                          className="h-full bg-gradient-to-r from-blue-500 via-cyan-500 to-blue-500 transition-all duration-500 ease-out relative overflow-hidden"
+                          style={{ width: `${progress}%` }}
+                        >
+                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent opacity-30 animate-shimmer"></div>
+                        </div>
+                      </div>
+                    </div>
                   )}
-                </button>
+                </div>
               )}
             </div>
           </div>
@@ -671,6 +799,17 @@ const ProblemGenerator = () => {
         }
         .animate-fadeIn {
           animation: fadeIn 0.3s ease-out;
+        }
+        @keyframes shimmer {
+          0% {
+            transform: translateX(-100%);
+          }
+          100% {
+            transform: translateX(100%);
+          }
+        }
+        .animate-shimmer {
+          animation: shimmer 2s infinite;
         }
       `}</style>
         </>

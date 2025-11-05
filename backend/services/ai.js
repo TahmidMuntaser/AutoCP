@@ -4,7 +4,15 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const generateProblem = async ({ topics, rating, suggestion }) => {
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-2.5-flash",
+      generationConfig: {
+        temperature: 0.9,
+        topK: 40,
+        topP: 0.95,
+        maxOutputTokens: 8192,
+      }
+    });
 
     // Create a comprehensive, detailed prompt for Gemini
     const prompt = `You are an expert competitive programming problem creator with deep knowledge of algorithms, data structures, and problem-solving techniques. Your task is to generate a UNIQUE, COMPLETE, and INTERESTING competitive programming problem.
@@ -41,15 +49,17 @@ ${suggestion ? `**CUSTOM STORY/THEME:** ${suggestion}` : '**STYLE:** Create a st
 **OUTPUT FORMAT (JSON):**
 Respond with a valid JSON object with this EXACT structure:
 
+CRITICAL: 
+- Respond ONLY with valid JSON - no extra text before or after
+- All strings must be properly escaped for JSON
+- Use \\n for newlines within string values, not literal line breaks
+- Do NOT include any markdown formatting, code blocks, or explanatory text
+- Ensure the JSON is complete and properly closed
+- Remove any trailing commas before closing brackets
+
 {
   "title": "Creative Problem Title (should be catchy and hint at the concept)",
-  "description": "Complete problem statement in 3-5 paragraphs:
-    - Paragraph 1: Story/context and problem setup
-    - Paragraph 2-3: Detailed problem description, what needs to be computed/solved
-    - Paragraph 4: Input format specification
-    - Paragraph 5: Output format specification
-    
-    Make it engaging, clear, and technically precise. Use proper formatting with line breaks between paragraphs.",
+  "description": "Complete problem statement in 3-5 paragraphs:\\n\\nParagraph 1: Story/context and problem setup\\n\\nParagraph 2-3: Detailed problem description, what needs to be computed/solved\\n\\nParagraph 4: Input format specification\\n\\nParagraph 5: Output format specification\\n\\nMake it engaging, clear, and technically precise. Use \\n\\n for paragraph breaks.",
   
   "examples": [
     {
@@ -60,14 +70,7 @@ Respond with a valid JSON object with this EXACT structure:
     // Provide 3-5 diverse examples covering: basic case, edge case, medium complexity, and tricky case
   ],
   
-  "constraints": "List all constraints clearly:
-• Input size constraints (e.g., 1 ≤ n ≤ 10^5)
-• Value constraints (e.g., 1 ≤ arr[i] ≤ 10^9)
-• Time limit: [X] seconds
-• Memory limit: [X] MB
-• Any special constraints specific to the problem
-  
-Ensure constraints are realistic for ${rating} rating and allow the intended solution to pass.",
+  "constraints": "List all constraints clearly:\\n• Input size constraints (e.g., 1 ≤ n ≤ 10^5)\\n• Value constraints (e.g., 1 ≤ arr[i] ≤ 10^9)\\n• Time limit: [X] seconds\\n• Memory limit: [X] MB\\n• Any special constraints specific to the problem\\n\\nEnsure constraints are realistic for ${rating} rating and allow the intended solution to pass.",
   
   "hints": [
     "Subtle hint 1 pointing toward a key observation",
@@ -105,9 +108,18 @@ Ensure constraints are realistic for ${rating} rating and allow the intended sol
 ✓ Problem is interesting and intellectually engaging
 ${suggestion ? '✓ Custom story/theme is naturally woven into the problem' : '✓ Problem has engaging narrative context'}
 
-Generate the problem now. Respond ONLY with the JSON object, no additional text.`;
+FINAL REMINDER: Output ONLY the JSON object. No markdown, no code blocks, no additional text. Just pure, valid JSON starting with { and ending with }.`;
 
-    const result = await model.generateContent(prompt);
+    const result = await model.generateContent({
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0.9,
+        topK: 40,
+        topP: 0.95,
+        maxOutputTokens: 8192,
+        responseMimeType: "application/json"
+      }
+    });
     const response = await result.response;
     const text = response.text();
 
@@ -116,12 +128,72 @@ Generate the problem now. Respond ONLY with the JSON object, no additional text.
     
     // Remove markdown code blocks if present
     if (jsonText.startsWith('```json')) {
-      jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+      jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?$/g, '');
     } else if (jsonText.startsWith('```')) {
       jsonText = jsonText.replace(/```\n?/g, '');
     }
 
-    const problemData = JSON.parse(jsonText);
+    // Also remove any trailing markdown or non-JSON content
+    jsonText = jsonText.trim();
+    
+    // Find the last closing brace to trim any trailing content
+    const lastBraceIndex = jsonText.lastIndexOf('}');
+    if (lastBraceIndex !== -1 && lastBraceIndex < jsonText.length - 1) {
+      jsonText = jsonText.substring(0, lastBraceIndex + 1);
+    }
+
+    let problemData;
+    try {
+      problemData = JSON.parse(jsonText);
+    } catch (parseError) {
+      console.error('JSON Parse Error:', parseError);
+      console.error('Problematic JSON text (first 1000 chars):', jsonText.substring(0, 1000));
+      console.error('Problematic JSON text (last 500 chars):', jsonText.substring(Math.max(0, jsonText.length - 500)));
+      
+      // Try to extract JSON object using regex as fallback
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        try {
+          // Clean the matched JSON more aggressively
+          let cleanJson = jsonMatch[0]
+            .replace(/```json\n?/g, '')
+            .replace(/```\n?/g, '')
+            .trim();
+          
+          // Find last closing brace
+          const lastBrace = cleanJson.lastIndexOf('}');
+          if (lastBrace !== -1 && lastBrace < cleanJson.length - 1) {
+            cleanJson = cleanJson.substring(0, lastBrace + 1);
+          }
+          
+          problemData = JSON.parse(cleanJson);
+        } catch (fallbackError) {
+          console.error('Fallback parse also failed:', fallbackError);
+          
+          // Last resort: try to fix common JSON issues
+          try {
+            // Remove any trailing commas before closing brackets/braces
+            let fixedJson = jsonMatch[0]
+              .replace(/```json\n?/g, '')
+              .replace(/```\n?/g, '')
+              .replace(/,(\s*[}\]])/g, '$1')
+              .trim();
+            
+            const lastBrace = fixedJson.lastIndexOf('}');
+            if (lastBrace !== -1) {
+              fixedJson = fixedJson.substring(0, lastBrace + 1);
+            }
+            
+            problemData = JSON.parse(fixedJson);
+          } catch (finalError) {
+            console.error('All parsing attempts failed:', finalError);
+            throw new Error('Failed to parse AI response. The response contains invalid JSON format. Please try again.');
+          }
+        }
+      } else {
+        throw new Error('No valid JSON found in AI response. Please try again.');
+      }
+    }
 
     // Validate required fields
     if (!problemData.title || !problemData.description || !problemData.examples) {
