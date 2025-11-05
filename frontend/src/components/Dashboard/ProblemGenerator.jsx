@@ -187,118 +187,122 @@ const ProblemGenerator = () => {
     <div className="w-full min-h-screen bg-[#002029] overflow-hidden relative p-4">
       {/* If problem is generated, show problem view */}
       {generatedProblem ? (
-        <div className="relative z-10 max-w-5xl mx-auto py-6">
-          {/* Header with actions */}
-          <div className="mb-8 flex items-start justify-between">
-            <div>
-              <div className="flex items-center gap-3 mb-3">
-                <span className="px-3 py-1 bg-blue-500/30 border border-blue-400/50 rounded-full text-blue-300 text-sm font-semibold">
-                  {generatedProblem.topic}
-                </span>
-                <span className="px-3 py-1 bg-purple-500/30 border border-purple-400/50 rounded-full text-purple-300 text-sm font-semibold">
-                  Rating {generatedProblem.rating}
-                </span>
-              </div>
-              <h1 className="text-4xl font-bold text-white mb-2">{generatedProblem.title}</h1>
-              <p className="text-gray-400 text-sm">Generated {generatedProblem.generatedAt}</p>
-            </div>
-            <div className="flex gap-3">
-              <button
-                onClick={handleFavorite}
-                className={`p-3 rounded-xl border-2 transition-all ${
-                  isFavorited
-                    ? 'bg-red-500/30 border-red-400 text-red-300'
-                    : 'bg-[#00303d] border-[#004052] text-gray-400 hover:border-red-400/50'
-                }`}
-              >
-                <Heart size={20} fill={isFavorited ? 'currentColor' : 'none'} />
-              </button>
-              <button
-                onClick={handleCopyCode}
-                className="p-3 rounded-xl border-2 bg-[#00303d] border-[#004052] text-gray-400 hover:border-blue-400/50 transition-all"
-              >
-                <Copy size={20} />
-              </button>
-            </div>
-          </div>
+        <div className="relative z-10 min-h-screen py-6">
+          {/* Animated Background */}
+          <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/5 rounded-full blur-3xl animate-pulse"></div>
+          <div className="absolute bottom-20 left-0 w-80 h-80 bg-cyan-500/5 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1.5s' }}></div>
 
-          {/* Problem Content */}
-          <div className="grid md:grid-cols-3 gap-8">
-            {/* Main problem area */}
-            <div className="md:col-span-2 space-y-6">
-              {/* Description */}
-              <div className="bg-[#00303d]/60 backdrop-blur-xl border border-blue-500/20 rounded-3xl p-8">
-                <h2 className="text-2xl font-bold text-white mb-4">Problem Statement</h2>
-                <p className="text-gray-300 leading-relaxed whitespace-pre-wrap">{generatedProblem.description}</p>
+          <div className="max-w-5xl mx-auto relative z-10">
+            {/* Header Section */}
+            <div className="mb-6">
+              <div className="flex items-start justify-between gap-4 mb-3">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-2 flex-wrap">
+                    <span className="px-3 py-1 bg-blue-500/30 border border-blue-400/50 rounded-lg text-blue-300 text-xs font-semibold">
+                      {generatedProblem.topic}
+                    </span>
+                    <span className="px-3 py-1 bg-purple-500/30 border border-purple-400/50 rounded-lg text-purple-300 text-xs font-semibold">
+                      Rating {generatedProblem.rating}
+                    </span>
+                  </div>
+                  <h1 className="text-2xl font-bold text-white mb-1">{generatedProblem.title}</h1>
+                  <p className="text-gray-400 text-xs">Generated {generatedProblem.generatedAt}</p>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <button
+                    onClick={handleFavorite}
+                    className={`p-2 rounded-lg border-2 transition-all ${
+                      isFavorited
+                        ? 'bg-red-500/30 border-red-400 text-red-300'
+                        : 'bg-[#00303d] border-[#004052] text-gray-400 hover:border-red-400/50'
+                    }`}
+                  >
+                    <Heart size={18} fill={isFavorited ? 'currentColor' : 'none'} />
+                  </button>
+                  <button
+                    onClick={handleCopyCode}
+                    className="p-2 rounded-lg border-2 bg-[#00303d] border-[#004052] text-gray-400 hover:border-blue-400/50 transition-all"
+                  >
+                    <Copy size={18} />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Complexity Summary Bar */}
+            <div className="grid grid-cols-2 gap-3 mb-6">
+              <div className="bg-[#00303d]/60 backdrop-blur-xl border border-cyan-500/20 rounded-lg p-4">
+                <p className="text-gray-400 text-xs font-semibold mb-1 uppercase">Time Complexity</p>
+                <p className="text-xl font-black text-cyan-300">{generatedProblem.timeComplexity}</p>
+              </div>
+              <div className="bg-[#00303d]/60 backdrop-blur-xl border border-green-500/20 rounded-lg p-4">
+                <p className="text-gray-400 text-xs font-semibold mb-1 uppercase">Space Complexity</p>
+                <p className="text-xl font-black text-green-300">{generatedProblem.spaceComplexity}</p>
+              </div>
+            </div>
+
+            {/* Main Content */}
+            <div className="space-y-4 mb-6">
+              {/* Problem Statement */}
+              <div className="bg-[#00303d]/60 backdrop-blur-xl border border-blue-500/20 rounded-2xl p-6 hover:border-blue-500/40 transition-all">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-1 h-6 bg-blue-400 rounded-full"></div>
+                  <h2 className="text-sm font-bold text-white uppercase tracking-wider">Problem Statement</h2>
+                </div>
+                <p className="text-gray-300 leading-relaxed text-base whitespace-pre-wrap">{generatedProblem.description}</p>
               </div>
 
               {/* Examples */}
-              <div className="bg-[#00303d]/60 backdrop-blur-xl border border-purple-500/20 rounded-3xl p-8">
-                <h2 className="text-2xl font-bold text-white mb-4">Examples</h2>
-                <div className="space-y-5">
+              <div className="bg-[#00303d]/60 backdrop-blur-xl border border-purple-500/20 rounded-2xl p-6 hover:border-purple-500/40 transition-all">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-1 h-6 bg-purple-400 rounded-full"></div>
+                  <h2 className="text-sm font-bold text-white uppercase tracking-wider">Examples</h2>
+                </div>
+                <div className="space-y-3">
                   {generatedProblem.examples.map((example, idx) => (
-                    <div key={idx} className="bg-[#002029]/50 border border-[#004052] rounded-xl p-5">
-                      <div className="grid md:grid-cols-3 gap-4">
-                        <div>
-                          <p className="text-gray-400 text-sm mb-2">Input</p>
-                          <p className="text-blue-300 font-mono bg-[#002029]/80 p-3 rounded border border-[#004052]">
-                            {example.input}
-                          </p>
+                    <div key={idx} className="bg-[#002029]/50 border border-[#004052] rounded-xl p-4 hover:border-purple-500/40 transition-all">
+                      <p className="text-xs text-purple-400 font-bold mb-3 uppercase tracking-wider">Example {idx + 1}</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-[#002029]/50 rounded-lg p-3 border border-blue-500/20">
+                          <p className="text-blue-400 text-xs font-bold mb-2 uppercase">Input</p>
+                          <p className="text-blue-300 font-mono text-sm truncate">{example.input}</p>
                         </div>
-                        <div>
-                          <p className="text-gray-400 text-sm mb-2">Output</p>
-                          <p className="text-green-300 font-mono bg-[#002029]/80 p-3 rounded border border-[#004052]">
-                            {example.output}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-gray-400 text-sm mb-2">Explanation</p>
-                          <p className="text-gray-300 text-sm bg-[#002029]/80 p-3 rounded border border-[#004052]">
-                            {example.explanation}
-                          </p>
+                        <div className="bg-[#002029]/50 rounded-lg p-3 border border-green-500/20">
+                          <p className="text-green-400 text-xs font-bold mb-2 uppercase">Output</p>
+                          <p className="text-green-300 font-mono text-sm truncate">{example.output}</p>
                         </div>
                       </div>
+                      {example.explanation && (
+                        <div className="mt-3 pt-3 border-t border-[#004052]">
+                          <p className="text-gray-400 text-xs font-bold mb-2 uppercase">Explanation</p>
+                          <p className="text-gray-300 text-sm line-clamp-2">{example.explanation}</p>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
               </div>
 
               {/* Constraints */}
-              <div className="bg-[#00303d]/60 backdrop-blur-xl border border-yellow-500/20 rounded-3xl p-8">
-                <h2 className="text-2xl font-bold text-white mb-4">Constraints</h2>
-                <pre className="text-gray-300 font-mono bg-[#002029]/50 p-5 rounded-xl border border-[#004052] whitespace-pre-wrap text-sm">
+              <div className="bg-[#00303d]/60 backdrop-blur-xl border border-yellow-500/20 rounded-2xl p-6 hover:border-yellow-500/40 transition-all">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-1 h-6 bg-yellow-400 rounded-full"></div>
+                  <h2 className="text-sm font-bold text-white uppercase tracking-wider">Constraints</h2>
+                </div>
+                <pre className="text-gray-300 font-mono text-sm bg-[#002029]/50 p-4 rounded-lg border border-[#004052] overflow-auto">
                   {generatedProblem.constraints}
                 </pre>
               </div>
             </div>
 
-            {/* Sidebar - Complexity & Actions */}
-            <div className="space-y-6">
-              {/* Complexity Analysis */}
-              <div className="bg-linear-to-br from-blue-500/10 to-purple-500/10 border-2 border-blue-500/30 rounded-3xl p-8 sticky top-8">
-                <h3 className="text-xl font-bold text-white mb-6">Complexity Analysis</h3>
-                
-                <div className="space-y-5">
-                  <div className="bg-[#002029]/40 rounded-xl p-4 border border-[#004052]">
-                    <p className="text-gray-400 text-sm mb-2">Time Complexity</p>
-                    <p className="text-cyan-300 font-mono text-lg font-bold">{generatedProblem.timeComplexity}</p>
-                  </div>
-
-                  <div className="bg-[#002029]/40 rounded-xl p-4 border border-[#004052]">
-                    <p className="text-gray-400 text-sm mb-2">Space Complexity</p>
-                    <p className="text-green-300 font-mono text-lg font-bold">{generatedProblem.spaceComplexity}</p>
-                  </div>
-
-                  <button
-                    onClick={generateAnother}
-                    className="w-full mt-6 py-4 bg-[#004052] hover:bg-[#005066] text-white font-bold rounded-xl transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
-                  >
-                    <Sparkles size={20} />
-                    Generate Another
-                  </button>
-                </div>
-              </div>
-            </div>
+            {/* Action Button */}
+            <button
+              onClick={generateAnother}
+              className="w-full py-3 bg-[#004052] hover:bg-[#005066] text-white font-semibold rounded-lg transition-all shadow-lg text-sm flex items-center justify-center gap-2"
+            >
+              <Sparkles size={16} />
+              New Challenge
+            </button>
           </div>
         </div>
       ) : (
