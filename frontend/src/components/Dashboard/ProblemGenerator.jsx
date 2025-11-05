@@ -37,7 +37,14 @@ const ProblemGenerator = () => {
     { id: 'strings', name: 'Strings', icon: Code2, color: 'indigo' },
     { id: 'geometry', name: 'Geometry', icon: Brain, color: 'teal' },
     { id: 'game-theory', name: 'Game Theory', icon: Zap, color: 'violet' },
-    { id: 'combinatorics', name: 'Combinatorics', icon: Code2, color: 'lime' }
+    { id: 'combinatorics', name: 'Combinatorics', icon: Code2, color: 'lime' },
+    { id: 'bit-manipulation', name: 'Bit Manipulation', icon: Zap, color: 'rose' },
+    { id: 'hashing', name: 'Hashing', icon: Code2, color: 'sky' },
+    { id: 'recursion', name: 'Recursion', icon: Brain, color: 'fuchsia' },
+    { id: 'backtracking', name: 'Backtracking', icon: Zap, color: 'amber' },
+    { id: 'segment-tree', name: 'Segment Tree', icon: Code2, color: 'emerald' },
+    { id: 'two-pointer', name: 'Two Pointer', icon: Brain, color: 'slate' },
+    { id: 'math', name: 'Math', icon: Zap, color: 'blue' }
   ];
 
   const ratings = [
@@ -78,7 +85,7 @@ const ProblemGenerator = () => {
       const mockProblem = {
         id: Date.now(),
         title: `${topicsText} Problem`,
-        topic: topicsText,
+        topic: topicsText,  
         rating: formData.rating,
         description: `You are given a problem involving ${topicsText.toLowerCase()}. ${formData.suggestion ? formData.suggestion : 'Solve this challenge efficiently.'}`,
         examples: [
@@ -187,14 +194,14 @@ const ProblemGenerator = () => {
     <div className="w-full min-h-screen bg-[#002029] overflow-hidden relative p-4">
       {/* If problem is generated, show problem view */}
       {generatedProblem ? (
-        <div className="relative z-10 min-h-screen py-6">
+        <div className="relative z-10 min-h-screen py-6 pt-0">
           {/* Animated Background */}
           <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/5 rounded-full blur-3xl animate-pulse"></div>
           <div className="absolute bottom-20 left-0 w-80 h-80 bg-cyan-500/5 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1.5s' }}></div>
 
-          <div className="max-w-5xl mx-auto relative z-10">
+          <div className="max-w-5xl mx-auto relative z-10 pt-0">
             {/* Header Section */}
-            <div className="mb-6">
+            <div className="mb-8">
               <div className="flex items-start justify-between gap-4 mb-3">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-2 flex-wrap">
@@ -205,7 +212,7 @@ const ProblemGenerator = () => {
                       Rating {generatedProblem.rating}
                     </span>
                   </div>
-                  <h1 className="text-2xl font-bold text-white mb-1">{generatedProblem.title}</h1>
+                  <h1 className="text-2xl font-bold text-white mt-6 mb-1">{generatedProblem.title}</h1>
                   <p className="text-gray-400 text-xs">Generated {generatedProblem.generatedAt}</p>
                 </div>
                 <div className="flex gap-2 shrink-0">
@@ -314,7 +321,7 @@ const ProblemGenerator = () => {
 
           <div className="relative z-10 max-w-6xl mx-auto">
             {/* Main Container */}
-            <div className="grid md:grid-cols-2 gap-12 items-center py-6">
+            <div className="grid md:grid-cols-2 gap-12 items-center py-6 pt-0">
           
           {/* Left Side - Visual/Info */}
           <div className="hidden md:flex flex-col justify-center space-y-8">
@@ -329,7 +336,7 @@ const ProblemGenerator = () => {
 
             <div className="space-y-6">
               <div className="flex gap-4 items-start">
-                <div className="w-12 h-12 rounded-lg bg-blue-500/20 border border-blue-400/50 flex items-center justify-center shrink-0">
+                <div className="w-12 h-12 rounded-lg bg-blue-500/20 border border-blue-400/50 flex items-center justify-center shrink-0 animate-pulse shadow-lg shadow-blue-500/50">
                   <Brain className="text-blue-300" size={24} />
                 </div>
                 <div>
@@ -339,7 +346,7 @@ const ProblemGenerator = () => {
               </div>
 
               <div className="flex gap-4 items-start">
-                <div className="w-12 h-12 rounded-lg bg-purple-500/20 border border-purple-400/50 flex items-center justify-center shrink-0">
+                <div className="w-12 h-12 rounded-lg bg-purple-500/20 border border-purple-400/50 flex items-center justify-center shrink-0 animate-pulse shadow-lg shadow-purple-500/50" style={{ animationDelay: '0.5s' }}>
                   <Zap className="text-purple-300" size={24} />
                 </div>
                 <div>
@@ -349,7 +356,7 @@ const ProblemGenerator = () => {
               </div>
 
               <div className="flex gap-4 items-start">
-                <div className="w-12 h-12 rounded-lg bg-cyan-500/20 border border-cyan-400/50 flex items-center justify-center shrink-0">
+                <div className="w-12 h-12 rounded-lg bg-cyan-500/20 border border-cyan-400/50 flex items-center justify-center shrink-0 animate-pulse shadow-lg shadow-cyan-500/50" style={{ animationDelay: '1s' }}>
                   <Code2 className="text-cyan-300" size={24} />
                 </div>
                 <div>
@@ -387,7 +394,7 @@ const ProblemGenerator = () => {
                   <p className="text-gray-400 text-sm">Select one or more topics (you can pick multiple!)</p>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-4 gap-2">
                   {topics.map((topic) => {
                     const Icon = topic.icon;
                     const isSelected = formData.topics.includes(topic.name);
@@ -534,7 +541,7 @@ const ProblemGenerator = () => {
               {step < 3 ? (
                 <button
                   onClick={handleNext}
-                  className={`flex-1 px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-lg transition-all shadow-lg shadow-blue-500/30 ${step === 1 ? 'ml-0' : ''}`}
+                  className={`flex-1 px-6 py-2 bg-[#004052] hover:bg-[#005066] text-white font-semibold text-sm rounded-lg transition-all shadow-lg ${step === 1 ? 'ml-0' : ''}`}
                 >
                   Next →
                 </button>

@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import Sidebar from '../../components/Dashboard/Sidebar';
 import ProblemGenerator from '../../components/Dashboard/ProblemGenerator';
+import FavouriteProblems from '../../components/Dashboard/FavouriteProblems';
+import History from '../../components/Dashboard/History';
 import { showToast } from '../../components/Toast/CustomToast';
 
 const Dashboard = () => {
@@ -85,21 +87,11 @@ const Dashboard = () => {
             )}
 
             {activeSection === 'history' && (
-              <div className="text-white">
-                <div className="bg-[#00607a] rounded-2xl shadow-2xl p-8">
-                  <h2 className="text-3xl font-bold mb-4">Your History</h2>
-                  <p className="text-gray-300">History content will go here</p>
-                </div>
-              </div>
+              <History />
             )}
 
             {activeSection === 'favorites' && (
-              <div className="text-white">
-                <div className="bg-[#00607a] rounded-2xl shadow-2xl p-8">
-                  <h2 className="text-3xl font-bold mb-4">Favourite Problems</h2>
-                  <p className="text-gray-300">Favourite problems content will go here</p>
-                </div>
-              </div>
+              <FavouriteProblems />
             )}
 
             {activeSection === 'profile' && (
