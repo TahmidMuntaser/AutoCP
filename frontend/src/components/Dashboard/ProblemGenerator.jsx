@@ -1,0 +1,586 @@
+import React, { useState } from 'react';
+import { 
+  Sparkles, 
+  Loader2, 
+  AlertCircle, 
+  Code2, 
+  Zap, 
+  Brain,
+  CheckCircle2,
+  ChevronRight,
+  Heart,
+  Download,
+  Copy
+} from 'lucide-react';
+import { showToast } from '../Toast/CustomToast';
+
+const ProblemGenerator = () => {
+  const [formData, setFormData] = useState({
+    topics: [],
+    rating: '',
+    suggestion: ''
+  });
+  const [loading, setLoading] = useState(false);
+  const [step, setStep] = useState(1);
+  const [generatedProblem, setGeneratedProblem] = useState(null);
+  const [isFavorited, setIsFavorited] = useState(false);
+
+  const topics = [
+    { id: 'dp', name: 'Dynamic Programming', icon: Brain, color: 'purple' },
+    { id: 'graph', name: 'Graph Algorithms', icon: Code2, color: 'blue' },
+    { id: 'greedy', name: 'Greedy', icon: Zap, color: 'yellow' },
+    { id: 'trees', name: 'Trees', icon: Code2, color: 'green' },
+    { id: 'binary-search', name: 'Binary Search', icon: Zap, color: 'cyan' },
+    { id: 'sorting', name: 'Sorting', icon: Code2, color: 'pink' },
+    { id: 'data-structures', name: 'Data Structures', icon: Brain, color: 'orange' },
+    { id: 'number-theory', name: 'Number Theory', icon: Zap, color: 'red' },
+    { id: 'strings', name: 'Strings', icon: Code2, color: 'indigo' },
+    { id: 'geometry', name: 'Geometry', icon: Brain, color: 'teal' },
+    { id: 'game-theory', name: 'Game Theory', icon: Zap, color: 'violet' },
+    { id: 'combinatorics', name: 'Combinatorics', icon: Code2, color: 'lime' }
+  ];
+
+  const ratings = [
+    { value: '800', label: '800', difficulty: 'Beginner', color: 'green' },
+    { value: '1000', label: '1000', difficulty: 'Easy', color: 'green' },
+    { value: '1200', label: '1200', difficulty: 'Medium', color: 'yellow' },
+    { value: '1400', label: '1400', difficulty: 'Medium', color: 'yellow' },
+    { value: '1600', label: '1600', difficulty: 'Hard', color: 'orange' },
+    { value: '1800', label: '1800', difficulty: 'Hard', color: 'red' },
+    { value: '2000', label: '2000+', difficulty: 'Expert', color: 'purple' }
+  ];
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleGenerateProblem = async (e) => {
+    e.preventDefault();
+
+    if (formData.topics.length === 0 || !formData.rating) {
+      showToast.error('Please select topics and rating');
+      return;
+    }
+
+    setLoading(true);
+    const toastId = showToast.loading('Generating problem...');
+
+    try {
+      // Simulate API call - replace with actual API call later
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Mock generated problem data
+      const topicsText = formData.topics.join(', ');
+      const mockProblem = {
+        id: Date.now(),
+        title: `${topicsText} Problem`,
+        topic: topicsText,
+        rating: formData.rating,
+        description: `You are given a problem involving ${topicsText.toLowerCase()}. ${formData.suggestion ? formData.suggestion : 'Solve this challenge efficiently.'}`,
+        examples: [
+          {
+            input: 'arr = [1, 2, 3, 4, 5]',
+            output: '15',
+            explanation: 'The sum of all elements is 15'
+          },
+          {
+            input: 'arr = [10, 20, 30]',
+            output: '60',
+            explanation: 'The sum of all elements is 60'
+          }
+        ],
+        constraints: `1 ≤ n ≤ 10^5\n1 ≤ arr[i] ≤ 10^9`,
+        timeComplexity: 'O(n)',
+        spaceComplexity: 'O(1)',
+        generatedAt: new Date().toLocaleString()
+      };
+
+      setGeneratedProblem(mockProblem);
+      setIsFavorited(false);
+      
+      showToast.dismiss(toastId);
+      showToast.success('Problem generated successfully!');
+    } catch (error) {
+      showToast.dismiss(toastId);
+      showToast.error('Failed to generate problem. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Check for inconsistent selections
+  const isInconsistentSelection = () => {
+    const hardTopics = ['Dynamic Programming', 'Graph Algorithms', 'Game Theory', 'Geometry'];
+    const hasHardTopic = formData.topics.some(topic => hardTopics.includes(topic));
+    const ratingValue = parseInt(formData.rating);
+    
+    if (hasHardTopic && ratingValue < 1200) {
+      return 'Some selected topics are typically harder. Consider choosing a higher rating.';
+    }
+    
+    const easyTopics = ['Sorting', 'Binary Search'];
+    const hasEasyTopic = formData.topics.some(topic => easyTopics.includes(topic));
+    
+    if (hasEasyTopic && ratingValue > 1600) {
+      return 'Some selected topics are typically easier. Consider choosing a lower rating.';
+    }
+    
+    return null;
+  };
+
+  const inconsistencyWarning = formData.topics.length > 0 && formData.rating ? isInconsistentSelection() : null;
+
+  const getColorClasses = (color, selected = false) => {
+    const colors = {
+      purple: selected ? 'bg-purple-500/20 border-purple-400 text-purple-300' : 'border-purple-500/30 hover:border-purple-400 hover:bg-purple-500/10',
+      blue: selected ? 'bg-blue-500/20 border-blue-400 text-blue-300' : 'border-blue-500/30 hover:border-blue-400 hover:bg-blue-500/10',
+      yellow: selected ? 'bg-yellow-500/20 border-yellow-400 text-yellow-300' : 'border-yellow-500/30 hover:border-yellow-400 hover:bg-yellow-500/10',
+      green: selected ? 'bg-green-500/20 border-green-400 text-green-300' : 'border-green-500/30 hover:border-green-400 hover:bg-green-500/10',
+      cyan: selected ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300' : 'border-cyan-500/30 hover:border-cyan-400 hover:bg-cyan-500/10',
+      pink: selected ? 'bg-pink-500/20 border-pink-400 text-pink-300' : 'border-pink-500/30 hover:border-pink-400 hover:bg-pink-500/10',
+      orange: selected ? 'bg-orange-500/20 border-orange-400 text-orange-300' : 'border-orange-500/30 hover:border-orange-400 hover:bg-orange-500/10',
+      red: selected ? 'bg-red-500/20 border-red-400 text-red-300' : 'border-red-500/30 hover:border-red-400 hover:bg-red-500/10',
+      indigo: selected ? 'bg-indigo-500/20 border-indigo-400 text-indigo-300' : 'border-indigo-500/30 hover:border-indigo-400 hover:bg-indigo-500/10',
+      teal: selected ? 'bg-teal-500/20 border-teal-400 text-teal-300' : 'border-teal-500/30 hover:border-teal-400 hover:bg-teal-500/10',
+      violet: selected ? 'bg-violet-500/20 border-violet-400 text-violet-300' : 'border-violet-500/30 hover:border-violet-400 hover:bg-violet-500/10',
+      lime: selected ? 'bg-lime-500/20 border-lime-400 text-lime-300' : 'border-lime-500/30 hover:border-lime-400 hover:bg-lime-500/10',
+    };
+    return colors[color] || colors.blue;
+  };
+
+  const handleNext = () => {
+    if (step === 1 && formData.topics.length === 0) {
+      showToast.error('Please select at least one topic');
+      return;
+    }
+    if (step === 2 && !formData.rating) {
+      showToast.error('Please select a difficulty');
+      return;
+    }
+    setStep(step + 1);
+  };
+
+  const handleBack = () => setStep(step - 1);
+
+  const generateAnother = () => {
+    setGeneratedProblem(null);
+    setFormData({ topics: [], rating: '', suggestion: '' });
+    setStep(1);
+  };
+
+  const handleCopyCode = () => {
+    const problemText = `${generatedProblem.title}\n\n${generatedProblem.description}\n\nExamples:\n${generatedProblem.examples.map((ex, i) => `${i + 1}. Input: ${ex.input}\nOutput: ${ex.output}`).join('\n\n')}\n\nConstraints:\n${generatedProblem.constraints}`;
+    navigator.clipboard.writeText(problemText);
+    showToast.success('Copied to clipboard!');
+  };
+
+  const handleFavorite = () => {
+    setIsFavorited(!isFavorited);
+    showToast.success(isFavorited ? 'Removed from favorites' : 'Added to favorites!');
+  };
+
+  return (
+    <div className="w-full min-h-screen bg-[#002029] overflow-hidden relative p-4">
+      {/* If problem is generated, show problem view */}
+      {generatedProblem ? (
+        <div className="relative z-10 min-h-screen py-6">
+          {/* Animated Background */}
+          <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/5 rounded-full blur-3xl animate-pulse"></div>
+          <div className="absolute bottom-20 left-0 w-80 h-80 bg-cyan-500/5 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1.5s' }}></div>
+
+          <div className="max-w-5xl mx-auto relative z-10">
+            {/* Header Section */}
+            <div className="mb-6">
+              <div className="flex items-start justify-between gap-4 mb-3">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-2 flex-wrap">
+                    <span className="px-3 py-1 bg-blue-500/30 border border-blue-400/50 rounded-lg text-blue-300 text-xs font-semibold">
+                      {generatedProblem.topic}
+                    </span>
+                    <span className="px-3 py-1 bg-purple-500/30 border border-purple-400/50 rounded-lg text-purple-300 text-xs font-semibold">
+                      Rating {generatedProblem.rating}
+                    </span>
+                  </div>
+                  <h1 className="text-2xl font-bold text-white mb-1">{generatedProblem.title}</h1>
+                  <p className="text-gray-400 text-xs">Generated {generatedProblem.generatedAt}</p>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <button
+                    onClick={handleFavorite}
+                    className={`p-2 rounded-lg border-2 transition-all ${
+                      isFavorited
+                        ? 'bg-red-500/30 border-red-400 text-red-300'
+                        : 'bg-[#00303d] border-[#004052] text-gray-400 hover:border-red-400/50'
+                    }`}
+                  >
+                    <Heart size={18} fill={isFavorited ? 'currentColor' : 'none'} />
+                  </button>
+                  <button
+                    onClick={handleCopyCode}
+                    className="p-2 rounded-lg border-2 bg-[#00303d] border-[#004052] text-gray-400 hover:border-blue-400/50 transition-all"
+                  >
+                    <Copy size={18} />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Complexity Summary Bar */}
+            <div className="grid grid-cols-2 gap-3 mb-6">
+              <div className="bg-[#00303d]/60 backdrop-blur-xl border border-cyan-500/20 rounded-lg p-4">
+                <p className="text-gray-400 text-xs font-semibold mb-1 uppercase">Time Complexity</p>
+                <p className="text-xl font-black text-cyan-300">{generatedProblem.timeComplexity}</p>
+              </div>
+              <div className="bg-[#00303d]/60 backdrop-blur-xl border border-green-500/20 rounded-lg p-4">
+                <p className="text-gray-400 text-xs font-semibold mb-1 uppercase">Space Complexity</p>
+                <p className="text-xl font-black text-green-300">{generatedProblem.spaceComplexity}</p>
+              </div>
+            </div>
+
+            {/* Main Content */}
+            <div className="space-y-4 mb-6">
+              {/* Problem Statement */}
+              <div className="bg-[#00303d]/60 backdrop-blur-xl border border-blue-500/20 rounded-2xl p-6 hover:border-blue-500/40 transition-all">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-1 h-6 bg-blue-400 rounded-full"></div>
+                  <h2 className="text-sm font-bold text-white uppercase tracking-wider">Problem Statement</h2>
+                </div>
+                <p className="text-gray-300 leading-relaxed text-base whitespace-pre-wrap">{generatedProblem.description}</p>
+              </div>
+
+              {/* Examples */}
+              <div className="bg-[#00303d]/60 backdrop-blur-xl border border-purple-500/20 rounded-2xl p-6 hover:border-purple-500/40 transition-all">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-1 h-6 bg-purple-400 rounded-full"></div>
+                  <h2 className="text-sm font-bold text-white uppercase tracking-wider">Examples</h2>
+                </div>
+                <div className="space-y-3">
+                  {generatedProblem.examples.map((example, idx) => (
+                    <div key={idx} className="bg-[#002029]/50 border border-[#004052] rounded-xl p-4 hover:border-purple-500/40 transition-all">
+                      <p className="text-xs text-purple-400 font-bold mb-3 uppercase tracking-wider">Example {idx + 1}</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-[#002029]/50 rounded-lg p-3 border border-blue-500/20">
+                          <p className="text-blue-400 text-xs font-bold mb-2 uppercase">Input</p>
+                          <p className="text-blue-300 font-mono text-sm truncate">{example.input}</p>
+                        </div>
+                        <div className="bg-[#002029]/50 rounded-lg p-3 border border-green-500/20">
+                          <p className="text-green-400 text-xs font-bold mb-2 uppercase">Output</p>
+                          <p className="text-green-300 font-mono text-sm truncate">{example.output}</p>
+                        </div>
+                      </div>
+                      {example.explanation && (
+                        <div className="mt-3 pt-3 border-t border-[#004052]">
+                          <p className="text-gray-400 text-xs font-bold mb-2 uppercase">Explanation</p>
+                          <p className="text-gray-300 text-sm line-clamp-2">{example.explanation}</p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Constraints */}
+              <div className="bg-[#00303d]/60 backdrop-blur-xl border border-yellow-500/20 rounded-2xl p-6 hover:border-yellow-500/40 transition-all">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-1 h-6 bg-yellow-400 rounded-full"></div>
+                  <h2 className="text-sm font-bold text-white uppercase tracking-wider">Constraints</h2>
+                </div>
+                <pre className="text-gray-300 font-mono text-sm bg-[#002029]/50 p-4 rounded-lg border border-[#004052] overflow-auto">
+                  {generatedProblem.constraints}
+                </pre>
+              </div>
+            </div>
+
+            {/* Action Button */}
+            <button
+              onClick={generateAnother}
+              className="w-full py-3 bg-[#004052] hover:bg-[#005066] text-white font-semibold rounded-lg transition-all shadow-lg text-sm flex items-center justify-center gap-2"
+            >
+              <Sparkles size={16} />
+              New Challenge
+            </button>
+          </div>
+        </div>
+      ) : (
+        /* Original Form View */
+        <>
+          {/* Animated Background Elements */}
+          <div className="absolute top-20 right-20 w-96 h-96 bg-blue-500/5 rounded-full blur-3xl animate-pulse"></div>
+          <div className="absolute bottom-32 left-10 w-72 h-72 bg-purple-500/5 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
+
+          <div className="relative z-10 max-w-6xl mx-auto">
+            {/* Main Container */}
+            <div className="grid md:grid-cols-2 gap-12 items-center py-6">
+          
+          {/* Left Side - Visual/Info */}
+          <div className="hidden md:flex flex-col justify-center space-y-8">
+            <div>
+              <h1 className="text-7xl font-black bg-linear-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent leading-tight mb-4">
+                Generate
+              </h1>
+              <h2 className="text-5xl font-bold text-white leading-tight">
+                Your Next Challenge
+              </h2>
+            </div>
+
+            <div className="space-y-6">
+              <div className="flex gap-4 items-start">
+                <div className="w-12 h-12 rounded-lg bg-blue-500/20 border border-blue-400/50 flex items-center justify-center shrink-0">
+                  <Brain className="text-blue-300" size={24} />
+                </div>
+                <div>
+                  <h3 className="text-white font-bold mb-1">AI-Powered</h3>
+                  <p className="text-gray-400">Intelligent problem generation tailored to your level</p>
+                </div>
+              </div>
+
+              <div className="flex gap-4 items-start">
+                <div className="w-12 h-12 rounded-lg bg-purple-500/20 border border-purple-400/50 flex items-center justify-center shrink-0">
+                  <Zap className="text-purple-300" size={24} />
+                </div>
+                <div>
+                  <h3 className="text-white font-bold mb-1">Instant</h3>
+                  <p className="text-gray-400">Generated in seconds with full explanations</p>
+                </div>
+              </div>
+
+              <div className="flex gap-4 items-start">
+                <div className="w-12 h-12 rounded-lg bg-cyan-500/20 border border-cyan-400/50 flex items-center justify-center shrink-0">
+                  <Code2 className="text-cyan-300" size={24} />
+                </div>
+                <div>
+                  <h3 className="text-white font-bold mb-1">Complete</h3>
+                  <p className="text-gray-400">Includes test cases, solutions, and complexity analysis</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Progress Dots */}
+            <div className="flex gap-3 pt-12">
+              {[1, 2, 3].map((s) => (
+                <div
+                  key={s}
+                  className={`h-2 transition-all duration-300 rounded-full ${
+                    s < step
+                      ? 'w-8 bg-green-400'
+                      : s === step
+                      ? 'w-12 bg-blue-400'
+                      : 'w-2 bg-[#004052]'
+                  }`}
+                ></div>
+              ))}
+            </div>
+          </div>
+
+          {/* Right Side - Form */}
+          <div className="bg-[#00303d]/60 backdrop-blur-xl border border-blue-500/20 rounded-2xl p-6 md:p-8 shadow-2xl">
+            
+            {/* Step 1: Topic Selection */}
+            {step === 1 && (
+              <div className="space-y-6 animate-fadeIn">
+                <div>
+                  <h2 className="text-2xl font-bold text-white mb-1">Pick Your Topics</h2>
+                  <p className="text-gray-400 text-sm">Select one or more topics (you can pick multiple!)</p>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  {topics.map((topic) => {
+                    const Icon = topic.icon;
+                    const isSelected = formData.topics.includes(topic.name);
+
+                    return (
+                      <button
+                        key={topic.id}
+                        onClick={() => {
+                          setFormData(prev => {
+                            const newTopics = prev.topics.includes(topic.name)
+                              ? prev.topics.filter(t => t !== topic.name)
+                              : [...prev.topics, topic.name];
+                            return { ...prev, topics: newTopics };
+                          });
+                        }}
+                        disabled={loading}
+                        className={`group relative p-3 rounded-lg transition-all duration-300 overflow-hidden disabled:opacity-50 ${
+                          isSelected
+                            ? 'bg-blue-500/30 border-2 border-blue-400 ring-2 ring-blue-400/30'
+                            : 'bg-[#002029]/50 border-2 border-[#004052] hover:border-blue-400/60'
+                        }`}
+                      >
+                        {isSelected && (
+                          <div className="absolute inset-0 bg-linear-to-r from-blue-500/20 to-purple-500/20 animate-pulse"></div>
+                        )}
+                        <div className="relative flex flex-col items-center text-center">
+                          <Icon className={`w-5 h-5 mb-1 transition-colors ${isSelected ? 'text-blue-300' : 'text-gray-400'}`} />
+                          <p className={`text-xs font-semibold transition-colors leading-tight ${isSelected ? 'text-blue-100' : 'text-gray-300'}`}>
+                            {topic.name}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Step 2: Difficulty Selection */}
+            {step === 2 && (
+              <div className="space-y-6 animate-fadeIn">
+                <div>
+                  <h2 className="text-2xl font-bold text-white mb-1">Pick Difficulty</h2>
+                  <p className="text-gray-400 text-sm">Topics: <span className="text-blue-300 font-semibold">{formData.topics.join(', ')}</span></p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  {ratings.map((rating) => {
+                    const isSelected = formData.rating === rating.value;
+                    const colorMap = {
+                      green: 'from-green-500/20 to-green-600/20 border-green-400/60 hover:border-green-400',
+                      yellow: 'from-yellow-500/20 to-yellow-600/20 border-yellow-400/60 hover:border-yellow-400',
+                      orange: 'from-orange-500/20 to-orange-600/20 border-orange-400/60 hover:border-orange-400',
+                      red: 'from-red-500/20 to-red-600/20 border-red-400/60 hover:border-red-400',
+                      purple: 'from-purple-500/20 to-purple-600/20 border-purple-400/60 hover:border-purple-400'
+                    };
+
+                    return (
+                      <button
+                        key={rating.value}
+                        onClick={() => setFormData(prev => ({ ...prev, rating: rating.value }))}
+                        disabled={loading}
+                        className={`p-3 rounded-lg transition-all duration-300 border-2 disabled:opacity-50 ${
+                          isSelected
+                            ? `bg-linear-to-r ${colorMap[rating.color]} ring-2 ring-opacity-30 ring-current`
+                            : `bg-[#002029]/50 border-[#004052] hover:${colorMap[rating.color]}`
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="text-left">
+                            <p className={`text-lg font-bold ${isSelected ? 'text-white' : 'text-gray-300'}`}>
+                              {rating.label}
+                            </p>
+                            <p className={`text-xs ${isSelected ? 'text-gray-200' : 'text-gray-500'}`}>
+                              {rating.difficulty}
+                            </p>
+                          </div>
+                          {isSelected && (
+                            <CheckCircle2 className="text-white shrink-0" size={18} />
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {inconsistencyWarning && (
+                  <div className="p-3 bg-yellow-500/20 border-2 border-yellow-500/40 rounded-lg flex gap-2">
+                    <AlertCircle className="text-yellow-400 shrink-0 mt-0.5" size={16} />
+                    <p className="text-yellow-100 text-xs">{inconsistencyWarning}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Step 3: Custom Story */}
+            {step === 3 && (
+              <div className="space-y-6 animate-fadeIn">
+                <div>
+                  <h2 className="text-2xl font-bold text-white mb-1">Add Your Twist</h2>
+                  <p className="text-gray-400 text-sm">{formData.topics.join(', ')} • {formData.rating}</p>
+                </div>
+
+                <div className="space-y-4">
+                  <textarea
+                    name="suggestion"
+                    value={formData.suggestion}
+                    onChange={handleInputChange}
+                    placeholder="Give your problem a story... or leave blank for a standard problem"
+                    rows="3"
+                    className="w-full px-4 py-2 bg-[#002029]/50 border-2 border-[#004052] rounded-lg text-white placeholder-gray-500 focus:border-blue-400 focus:outline-none transition-all resize-none text-sm"
+                    disabled={loading}
+                  />
+
+                  <div className="bg-linear-to-r from-blue-500/10 to-purple-500/10 border-2 border-blue-500/30 rounded-lg p-3">
+                    <p className="text-gray-300 font-semibold text-xs mb-2">⚡ What You'll Get:</p>
+                    <ul className="space-y-1 text-xs text-gray-400">
+                      <li className="flex gap-2">
+                        <span className="text-blue-400">✓</span> Full problem statement
+                      </li>
+                      <li className="flex gap-2">
+                        <span className="text-purple-400">✓</span> 5-10 test cases
+                      </li>
+                      <li className="flex gap-2">
+                        <span className="text-cyan-400">✓</span> Time & space complexity
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Navigation Buttons */}
+            <div className="flex gap-3 mt-8">
+              {step > 1 && (
+                <button
+                  onClick={handleBack}
+                  className="px-6 py-2 rounded-lg border-2 border-[#004052] text-white font-semibold text-sm hover:bg-[#004052]/50 transition-all"
+                >
+                  Back
+                </button>
+              )}
+
+              {step < 3 ? (
+                <button
+                  onClick={handleNext}
+                  className={`flex-1 px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-lg transition-all shadow-lg shadow-blue-500/30 ${step === 1 ? 'ml-0' : ''}`}
+                >
+                  Next →
+                </button>
+              ) : (
+                <button
+                  onClick={handleGenerateProblem}
+                  disabled={loading || formData.topics.length === 0 || !formData.rating}
+                  className="flex-1 flex items-center justify-center gap-2 px-6 py-2 bg-[#004052] hover:bg-[#005066] text-white font-bold text-sm rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      <span>Creating...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles size={16} />
+                      <span>Generate!</span>
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <style jsx>{`
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        .animate-fadeIn {
+          animation: fadeIn 0.3s ease-out;
+        }
+      `}</style>
+        </>
+      )}
+    </div>
+  );
+};
+
+export default ProblemGenerator;
