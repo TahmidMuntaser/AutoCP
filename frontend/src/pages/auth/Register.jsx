@@ -91,7 +91,7 @@ const Register = () => {
         showToast.dismiss(toastId);
         showToast.success('Email verified! Welcome to AutoCP!');
         setTimeout(() => {
-          navigate('/');
+          navigate('/dashboard');
         }, 1000);
       } else {
         showToast.dismiss(toastId);
