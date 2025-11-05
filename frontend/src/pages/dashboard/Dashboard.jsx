@@ -3,6 +3,7 @@ import { LogOut, Menu, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import Sidebar from '../../components/Dashboard/Sidebar';
+import ProblemGenerator from '../../components/Dashboard/ProblemGenerator';
 import { showToast } from '../../components/Toast/CustomToast';
 
 const Dashboard = () => {
@@ -26,7 +27,7 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#002029] flex">
+    <div className="min-h-screen bg-[#002029]">
       {/* Sidebar */}
       <Sidebar 
         activeSection={activeSection} 
@@ -36,7 +37,11 @@ const Dashboard = () => {
       />
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col">
+      <div 
+        className={`min-h-screen flex flex-col transition-all duration-300 ${
+          sidebarOpen ? 'md:ml-64' : 'md:ml-16'
+        }`}
+      >
         {/* Top Bar */}
         <div className="bg-[#002029] border-b border-[#005066] px-6 py-4 flex items-center justify-between">
           <div className="flex items-center space-x-4">
@@ -76,12 +81,7 @@ const Dashboard = () => {
           <div className="p-6 md:p-8">
             {/* Placeholder for different sections */}
             {activeSection === 'dashboard' && (
-              <div className="text-white">
-                <div className="bg-[#00607a] rounded-2xl shadow-2xl p-8">
-                  <h2 className="text-3xl font-bold mb-4">Welcome to Dashboard</h2>
-                  <p className="text-gray-300">Dashboard content will go here</p>
-                </div>
-              </div>
+              <ProblemGenerator />
             )}
 
             {activeSection === 'history' && (

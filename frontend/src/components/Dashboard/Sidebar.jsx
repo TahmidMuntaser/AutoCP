@@ -61,7 +61,7 @@ const Sidebar = ({ activeSection, setActiveSection, isOpen, toggleSidebar }) => 
 
       {/* Sidebar */}
       <div
-        className={`fixed md:static top-0 left-0 h-screen w-64 md:w-auto bg-[#002029] border-r border-[#005066] flex flex-col transition-all duration-300 ease-in-out z-40 overflow-hidden ${
+        className={`fixed top-0 left-0 h-screen w-64 md:w-auto bg-[#002029] border-r border-[#005066] flex flex-col transition-all duration-300 ease-in-out z-40 overflow-hidden ${
           isOpen ? 'translate-x-0 md:w-64' : '-translate-x-full md:translate-x-0 md:w-16'
         }`}
       >
