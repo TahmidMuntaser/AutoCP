@@ -1,107 +1,72 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Trash2, Copy, Clock, ChevronLeft } from 'lucide-react';
 import { showToast } from '../Toast/CustomToast';
+import { getProblemHistory, deleteProblem } from '../../services/generateProblemApi';
 
 const History = () => {
-  const [problems, setProblems] = useState([
-    {
-      id: 1,
-      title: 'Two Sum Problem',
-      topic: ['Arrays', 'Math', 'Greedy'],
-      rating: '800',
-      timeComplexity: 'O(n)',
-      spaceComplexity: 'O(n)',
-      description: 'Given an array of integers nums and an integer target, return the indices of the two numbers that add up to target.',
-      examples: [
-        {
-          input: 'nums = [2,7,11,15], target = 9',
-          output: '[0,1]',
-          explanation: 'nums[0] + nums[1] == 9, so we return [0, 1]'
-        },
-        {
-          input: 'nums = [3,2,4], target = 6',
-          output: '[1,2]',
-          explanation: 'nums[1] + nums[2] == 6, so we return [1, 2]'
-        }
-      ],
-      constraints: '2 ≤ nums.length ≤ 10^4\n-10^9 ≤ nums[i] ≤ 10^9\n-10^9 ≤ target ≤ 10^9',
-      generatedAt: '2024-11-05 10:30 AM'
-    },
-    {
-      id: 2,
-      title: 'Binary Tree Traversal',
-      topic: ['Trees', 'DFS'],
-      rating: '1200',
-      timeComplexity: 'O(n)',
-      spaceComplexity: 'O(h)',
-      description: 'Implement in-order, pre-order, and post-order traversal of a binary tree.',
-      examples: [
-        {
-          input: 'tree = [1,null,2,3]',
-          output: '[1,3,2]',
-          explanation: 'The in-order traversal visits left subtree, node, then right subtree'
-        }
-      ],
-      constraints: 'The number of nodes in the tree is in the range [0, 100].\n-100 ≤ Node.val ≤ 100',
-      generatedAt: '2024-11-05 09:15 AM'
-    },
-    {
-      id: 3,
-      title: 'Longest Substring Without Repeating',
-      topic: ['Strings', 'Sliding Window'],
-      rating: '1000',
-      timeComplexity: 'O(n)',
-      spaceComplexity: 'O(min(m,n))',
-      description: 'Given a string s, find the length of the longest substring without repeating characters.',
-      examples: [
-        {
-          input: 's = "abcabcbb"',
-          output: '3',
-          explanation: 'The answer is "abc", with the length of 3'
-        }
-      ],
-      constraints: '0 ≤ s.length ≤ 5 * 10^4\ns consists of English letters, digits, symbols and spaces.',
-      generatedAt: '2024-11-05 08:45 AM'
-    },
-    {
-      id: 4,
-      title: 'Merge K Sorted Lists',
-      topic: ['Linked Lists', 'Heap'],
-      rating: '1600',
-      timeComplexity: 'O(n log k)',
-      spaceComplexity: 'O(1)',
-      description: 'You are given an array of k linked-lists lists, each linked-list is sorted in ascending order. Merge all the linked-lists into one sorted linked-list.',
-      examples: [
-        {
-          input: 'lists = [[1,4,5],[1,3,4],[2,6]]',
-          output: '[1,1,2,1,3,4,4,5,6]',
-          explanation: 'The linked-lists are merged into one sorted list'
-        }
-      ],
-      constraints: 'k == lists.length\n0 ≤ k ≤ 10^4\n0 ≤ lists[i].length ≤ 500',
-      generatedAt: '2024-11-05 07:20 AM'
-    }
-  ]);
+  const [problems, setProblems] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [selectedProblem, setSelectedProblem] = useState(null);
 
-  const handleDeleteProblem = (id) => {
-    setProblems(problems.filter(p => p.id !== id));
-    showToast('Problem removed from history', 'success');
+  // Fetch problem history on component mount
+  useEffect(() => {
+    fetchHistory();
+  }, []);
+
+  const fetchHistory = async () => {
+    try {
+      setLoading(true);
+      const response = await getProblemHistory(1, 50);
+      if (response.success) {
+        // Format problems for display
+        const formattedProblems = response.data.map(p => ({
+          id: p._id,
+          title: p.title,
+          topic: p.topics,
+          rating: p.rating,
+          timeComplexity: p.timeComplexity,
+          spaceComplexity: p.spaceComplexity,
+          description: p.description,
+          examples: p.examples,
+          constraints: p.constraints,
+          generatedAt: new Date(p.generatedAt).toLocaleString()
+        }));
+        setProblems(formattedProblems);
+      }
+    } catch (error) {
+      console.error('Error fetching history:', error);
+      showToast.error('Failed to load history');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteProblem = async (id) => {
+    try {
+      const response = await deleteProblem(id);
+      if (response.success) {
+        setProblems(problems.filter(p => p.id !== id));
+        showToast.success('Problem removed from history');
+      }
+    } catch (error) {
+      console.error('Error deleting problem:', error);
+      showToast.error('Failed to delete problem');
+    }
   };
 
   const handleDeleteAll = () => {
     if (problems.length === 0) {
-      showToast('No problems to delete', 'error');
+      showToast.error('No problems to delete');
       return;
     }
-    setProblems([]);
-    showToast('All history cleared', 'success');
+    // Would need a bulk delete API endpoint for this
+    showToast.error('Bulk delete not implemented yet');
   };
 
   const handleCopy = (problem) => {
     const problemText = `${problem.title}\n\n${problem.description}\n\nTime: ${problem.timeComplexity}\nSpace: ${problem.spaceComplexity}`;
     navigator.clipboard.writeText(problemText);
-    showToast('Problem copied to clipboard', 'success');
+    showToast.success('Problem copied to clipboard');
   };
 
   // If a problem is selected, show full details
@@ -176,9 +141,31 @@ const History = () => {
               <div className="w-1 h-6 bg-linear-to-b from-blue-500 to-purple-500 rounded"></div>
               <h2 className="text-xl font-bold text-white">Problem Statement</h2>
             </div>
-            <p className="text-base text-gray-300 leading-relaxed bg-[#00303d]/40 border-l-2 border-blue-500/30 pl-4 py-3 rounded">
-              {selectedProblem.description}
-            </p>
+            <div className="text-base text-gray-300 leading-relaxed bg-[#00303d]/40 border-l-2 border-blue-500/30 pl-4 py-3 rounded whitespace-pre-wrap break-words">
+              {selectedProblem.description.split('\n').map((paragraph, idx) => {
+                if (!paragraph.trim()) return null;
+                
+                // Handle bullet points
+                if (paragraph.trim().startsWith('•') || paragraph.trim().startsWith('-') || paragraph.trim().match(/^\d+\./)) {
+                  return (
+                    <div key={idx} className="flex gap-2 my-2">
+                      <span className="text-blue-400 mt-1">•</span>
+                      <span className="flex-1">{paragraph.replace(/^[•\-]\s*/, '').replace(/^\d+\.\s*/, '')}</span>
+                    </div>
+                  );
+                }
+                
+                // Handle bold text **text**
+                const formattedText = paragraph.split(/(\*\*.*?\*\*)/).map((part, i) => {
+                  if (part.startsWith('**') && part.endsWith('**')) {
+                    return <strong key={i} className="text-white font-bold">{part.slice(2, -2)}</strong>;
+                  }
+                  return part;
+                });
+                
+                return <p key={idx} className="mb-3">{formattedText}</p>;
+              })}
+            </div>
           </div>
 
           {/* Examples */}
@@ -193,16 +180,16 @@ const History = () => {
                   <div className="grid md:grid-cols-2 gap-3 mb-2">
                     <div>
                       <p className="text-cyan-400 font-semibold text-sm mb-1">Input</p>
-                      <p className="text-gray-300 font-mono text-sm">{example.input}</p>
+                      <p className="text-gray-300 font-mono text-sm break-words">{example.input}</p>
                     </div>
                     <div>
                       <p className="text-green-400 font-semibold text-sm mb-1">Output</p>
-                      <p className="text-gray-300 font-mono text-sm">{example.output}</p>
+                      <p className="text-gray-300 font-mono text-sm break-words">{example.output}</p>
                     </div>
                   </div>
                   {example.explanation && (
                     <div className="border-t border-blue-500/10 pt-2">
-                      <p className="text-gray-400 text-sm line-clamp-2">{example.explanation}</p>
+                      <p className="text-gray-400 text-sm whitespace-pre-wrap break-words">{example.explanation}</p>
                     </div>
                   )}
                 </div>

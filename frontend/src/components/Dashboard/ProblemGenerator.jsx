@@ -13,6 +13,7 @@ import {
   Copy
 } from 'lucide-react';
 import { showToast } from '../Toast/CustomToast';
+import { generateProblem, toggleFavorite as toggleFavoriteApi } from '../../services/generateProblemApi';
 
 const ProblemGenerator = () => {
   const [formData, setFormData] = useState({
@@ -74,46 +75,47 @@ const ProblemGenerator = () => {
     }
 
     setLoading(true);
-    const toastId = showToast.loading('Generating problem...');
+    const toastId = showToast.loading('Generating problem with AI...');
 
     try {
-      // Simulate API call - replace with actual API call later
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Mock generated problem data
-      const topicsText = formData.topics.join(', ');
-      const mockProblem = {
-        id: Date.now(),
-        title: `${topicsText} Problem`,
-        topic: topicsText,  
+      // Call the API to generate problem
+      const response = await generateProblem({
+        topics: formData.topics,
         rating: formData.rating,
-        description: `You are given a problem involving ${topicsText.toLowerCase()}. ${formData.suggestion ? formData.suggestion : 'Solve this challenge efficiently.'}`,
-        examples: [
-          {
-            input: 'arr = [1, 2, 3, 4, 5]',
-            output: '15',
-            explanation: 'The sum of all elements is 15'
-          },
-          {
-            input: 'arr = [10, 20, 30]',
-            output: '60',
-            explanation: 'The sum of all elements is 60'
-          }
-        ],
-        constraints: `1 ≤ n ≤ 10^5\n1 ≤ arr[i] ≤ 10^9`,
-        timeComplexity: 'O(n)',
-        spaceComplexity: 'O(1)',
-        generatedAt: new Date().toLocaleString()
-      };
+        suggestion: formData.suggestion
+      });
 
-      setGeneratedProblem(mockProblem);
-      setIsFavorited(false);
-      
-      showToast.dismiss(toastId);
-      showToast.success('Problem generated successfully!');
+      if (response.success) {
+        const problem = response.data;
+        
+        // Format the problem data for display
+        const formattedProblem = {
+          id: problem._id,
+          title: problem.title,
+          topic: problem.topics.join(', '),
+          rating: problem.rating,
+          description: problem.description,
+          examples: problem.examples || [],
+          constraints: problem.constraints,
+          timeComplexity: problem.timeComplexity,
+          spaceComplexity: problem.spaceComplexity,
+          hints: problem.hints || [],
+          approach: problem.approach || '',
+          keyInsights: problem.keyInsights || [],
+          tags: problem.tags || [],
+          generatedAt: new Date(problem.generatedAt).toLocaleString()
+        };
+
+        setGeneratedProblem(formattedProblem);
+        setIsFavorited(problem.isFavorited);
+        
+        showToast.dismiss(toastId);
+        showToast.success('Problem generated successfully!');
+      }
     } catch (error) {
+      console.error('Error generating problem:', error);
       showToast.dismiss(toastId);
-      showToast.error('Failed to generate problem. Please try again.');
+      showToast.error(error.message || 'Failed to generate problem. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -185,9 +187,20 @@ const ProblemGenerator = () => {
     showToast.success('Copied to clipboard!');
   };
 
-  const handleFavorite = () => {
-    setIsFavorited(!isFavorited);
-    showToast.success(isFavorited ? 'Removed from favorites' : 'Added to favorites!');
+  const handleFavorite = async () => {
+    if (!generatedProblem?.id) return;
+
+    try {
+      const response = await toggleFavoriteApi(generatedProblem.id);
+      
+      if (response.success) {
+        setIsFavorited(!isFavorited);
+        showToast.success(response.message);
+      }
+    } catch (error) {
+      console.error('Error toggling favorite:', error);
+      showToast.error(error.message || 'Failed to update favorite status');
+    }
   };
 
   return (
@@ -211,6 +224,11 @@ const ProblemGenerator = () => {
                     <span className="px-3 py-1 bg-purple-500/30 border border-purple-400/50 rounded-lg text-purple-300 text-xs font-semibold">
                       Rating {generatedProblem.rating}
                     </span>
+                    {generatedProblem.tags && generatedProblem.tags.map((tag, idx) => (
+                      <span key={idx} className="px-3 py-1 bg-cyan-500/20 border border-cyan-400/40 rounded-lg text-cyan-300 text-xs font-semibold">
+                        {tag}
+                      </span>
+                    ))}
                   </div>
                   <h1 className="text-2xl font-bold text-white mt-6 mb-1">{generatedProblem.title}</h1>
                   <p className="text-gray-400 text-xs">Generated {generatedProblem.generatedAt}</p>
@@ -256,7 +274,31 @@ const ProblemGenerator = () => {
                   <div className="w-1 h-6 bg-blue-400 rounded-full"></div>
                   <h2 className="text-sm font-bold text-white uppercase tracking-wider">Problem Statement</h2>
                 </div>
-                <p className="text-gray-300 leading-relaxed text-base whitespace-pre-wrap">{generatedProblem.description}</p>
+                <div className="text-gray-300 leading-relaxed text-base whitespace-pre-wrap prose prose-invert max-w-none">
+                  {generatedProblem.description.split('\n').map((paragraph, idx) => {
+                    if (!paragraph.trim()) return null;
+                    
+                    // Handle bullet points
+                    if (paragraph.trim().startsWith('•') || paragraph.trim().startsWith('-') || paragraph.trim().match(/^\d+\./)) {
+                      return (
+                        <div key={idx} className="flex gap-2 my-2">
+                          <span className="text-blue-400 mt-1">•</span>
+                          <span className="flex-1">{paragraph.replace(/^[•\-]\s*/, '').replace(/^\d+\.\s*/, '')}</span>
+                        </div>
+                      );
+                    }
+                    
+                    // Handle bold text **text**
+                    const formattedText = paragraph.split(/(\*\*.*?\*\*)/).map((part, i) => {
+                      if (part.startsWith('**') && part.endsWith('**')) {
+                        return <strong key={i} className="text-white font-bold">{part.slice(2, -2)}</strong>;
+                      }
+                      return part;
+                    });
+                    
+                    return <p key={idx} className="mb-3">{formattedText}</p>;
+                  })}
+                </div>
               </div>
 
               {/* Examples */}
@@ -272,17 +314,17 @@ const ProblemGenerator = () => {
                       <div className="grid grid-cols-2 gap-3">
                         <div className="bg-[#002029]/50 rounded-lg p-3 border border-blue-500/20">
                           <p className="text-blue-400 text-xs font-bold mb-2 uppercase">Input</p>
-                          <p className="text-blue-300 font-mono text-sm truncate">{example.input}</p>
+                          <p className="text-blue-300 font-mono text-sm break-words">{example.input}</p>
                         </div>
                         <div className="bg-[#002029]/50 rounded-lg p-3 border border-green-500/20">
                           <p className="text-green-400 text-xs font-bold mb-2 uppercase">Output</p>
-                          <p className="text-green-300 font-mono text-sm truncate">{example.output}</p>
+                          <p className="text-green-300 font-mono text-sm break-words">{example.output}</p>
                         </div>
                       </div>
                       {example.explanation && (
                         <div className="mt-3 pt-3 border-t border-[#004052]">
                           <p className="text-gray-400 text-xs font-bold mb-2 uppercase">Explanation</p>
-                          <p className="text-gray-300 text-sm line-clamp-2">{example.explanation}</p>
+                          <p className="text-gray-300 text-sm whitespace-pre-wrap break-words">{example.explanation}</p>
                         </div>
                       )}
                     </div>
@@ -296,10 +338,57 @@ const ProblemGenerator = () => {
                   <div className="w-1 h-6 bg-yellow-400 rounded-full"></div>
                   <h2 className="text-sm font-bold text-white uppercase tracking-wider">Constraints</h2>
                 </div>
-                <pre className="text-gray-300 font-mono text-sm bg-[#002029]/50 p-4 rounded-lg border border-[#004052] overflow-auto">
+                <pre className="text-gray-300 font-mono text-sm bg-[#002029]/50 p-4 rounded-lg border border-[#004052] overflow-auto whitespace-pre-wrap">
                   {generatedProblem.constraints}
                 </pre>
               </div>
+
+              {/* Approach */}
+              {generatedProblem.approach && (
+                <div className="bg-[#00303d]/60 backdrop-blur-xl border border-cyan-500/20 rounded-2xl p-6 hover:border-cyan-500/40 transition-all">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-1 h-6 bg-cyan-400 rounded-full"></div>
+                    <h2 className="text-sm font-bold text-white uppercase tracking-wider">Approach</h2>
+                  </div>
+                  <p className="text-gray-300 leading-relaxed text-sm whitespace-pre-wrap break-words">{generatedProblem.approach}</p>
+                </div>
+              )}
+
+              {/* Key Insights */}
+              {generatedProblem.keyInsights && generatedProblem.keyInsights.length > 0 && (
+                <div className="bg-[#00303d]/60 backdrop-blur-xl border border-pink-500/20 rounded-2xl p-6 hover:border-pink-500/40 transition-all">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-1 h-6 bg-pink-400 rounded-full"></div>
+                    <h2 className="text-sm font-bold text-white uppercase tracking-wider">Key Insights</h2>
+                  </div>
+                  <ul className="space-y-2">
+                    {generatedProblem.keyInsights.map((insight, idx) => (
+                      <li key={idx} className="flex items-start gap-3">
+                        <span className="text-pink-400 mt-1">•</span>
+                        <span className="text-gray-300 text-sm flex-1 break-words">{insight}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Hints */}
+              {generatedProblem.hints && generatedProblem.hints.length > 0 && (
+                <div className="bg-[#00303d]/60 backdrop-blur-xl border border-orange-500/20 rounded-2xl p-6 hover:border-orange-500/40 transition-all">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-1 h-6 bg-orange-400 rounded-full"></div>
+                    <h2 className="text-sm font-bold text-white uppercase tracking-wider">Hints</h2>
+                  </div>
+                  <div className="space-y-2">
+                    {generatedProblem.hints.map((hint, idx) => (
+                      <div key={idx} className="bg-[#002029]/50 border border-[#004052] rounded-lg p-3">
+                        <p className="text-orange-400 text-xs font-bold mb-1">Hint {idx + 1}</p>
+                        <p className="text-gray-300 text-sm break-words whitespace-pre-wrap">{hint}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Action Button */}
