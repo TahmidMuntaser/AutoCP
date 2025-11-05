@@ -7,6 +7,7 @@ import ScrollToTop from './components/ScrollTop/ScrollTop';
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
 import HomePage from './pages/public/HomePage';
+import Dashboard from './pages/dashboard/Dashboard';
 import CustomToast from './components/Toast/CustomToast';
 import { AuthProvider } from './contexts/AuthContext';
 
@@ -41,6 +42,13 @@ function App() {
         {/* Auth Routes (without layout) */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        
+        {/* Dashboard Routes - Protected for regular users */}
+        <Route path="/dashboard" element={
+          <ProtectedRoute requiredRole="user">
+            <Dashboard />
+          </ProtectedRoute>
+        } />
         
         {/* 404 Route */}
         <Route path="*" element={<div className="p-8 text-white min-h-screen bg-[#01161e] flex items-center justify-center">404 - Page Not Found</div>} />

@@ -40,7 +40,7 @@ const Login = () => {
         showToast.dismiss(toastId);
         showToast.success('Login successful! Welcome back!');
         setTimeout(() => {
-          navigate('/');
+          navigate('/dashboard');
         }, 500);
       } else {
         showToast.dismiss(toastId);
