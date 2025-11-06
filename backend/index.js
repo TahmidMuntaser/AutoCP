@@ -29,9 +29,12 @@ app.use(express.urlencoded({ extended: true }));
 // --- Routes ---
 const authRoutes = require('./routes/authRoutes');
 const generateProblemRoutes = require('./routes/generateProblemRoutes');
+const generateSolutionRoutes = require('./routes/generateSolutionRoutes');
+
 
 app.use('/api/auth', authRoutes);
 app.use('/api/generate-problem', generateProblemRoutes);
+app.use('/api/generate-solution', generateSolutionRoutes);
 
 
 // --- Global Error Handler ---

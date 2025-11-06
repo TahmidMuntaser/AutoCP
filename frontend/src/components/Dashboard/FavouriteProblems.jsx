@@ -1,12 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Trash2, Copy, Heart, ChevronLeft } from 'lucide-react';
+import { Trash2, Copy, Heart, ChevronLeft, FileCode } from 'lucide-react';
 import { showToast } from '../Toast/CustomToast';
 import { getFavoriteProblems, toggleFavorite, deleteProblem } from '../../services/generateProblemApi';
+import { generateSolution as generateSolutionApi, getSolution } from '../../services/generateSolutionApi';
+import SolutionModal from '../Solution/SolutionModal';
 
 const FavouriteProblems = () => {
   const [problems, setProblems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedProblem, setSelectedProblem] = useState(null);
+  const [solutionModalOpen, setSolutionModalOpen] = useState(false);
+  const [solution, setSolution] = useState(null);
+  const [solutionLoading, setSolutionLoading] = useState(false);
 
   // Fetch favorite problems on component mount
   useEffect(() => {
@@ -82,10 +87,55 @@ const FavouriteProblems = () => {
     showToast('Problem copied to clipboard', 'success');
   };
 
+  const handleViewSolution = async (problemId) => {
+    if (!problemId) return;
+
+    try {
+      setSolutionModalOpen(true);
+      setSolutionLoading(true);
+
+      // Try to get existing solution first
+      try {
+        const response = await getSolution(problemId);
+        if (response.success) {
+          setSolution(response.data);
+          setSolutionLoading(false);
+          return;
+        }
+      } catch (error) {
+        console.log('Solution not found, generating new one...');
+      }
+
+      // Generate new solution
+      const toastId = showToast.loading('Generating solution...');
+      const response = await generateSolutionApi(problemId);
+      
+      if (response.success) {
+        setSolution(response.data);
+        showToast.dismiss(toastId);
+        showToast.success('Solution generated successfully!');
+      }
+    } catch (error) {
+      console.error('Error getting solution:', error);
+      showToast.error(error.message || 'Failed to get solution');
+      setSolutionModalOpen(false);
+    } finally {
+      setSolutionLoading(false);
+    }
+  };
+
   // If a problem is selected, show full details
   if (selectedProblem) {
     return (
       <div className="bg-[#002029] relative overflow-hidden py-0">
+        {/* Solution Modal */}
+        <SolutionModal
+          isOpen={solutionModalOpen}
+          onClose={() => setSolutionModalOpen(false)}
+          solution={solution}
+          loading={solutionLoading}
+        />
+
         {/* Animated background orbs */}
         <div className="absolute top-0 left-0 w-96 h-96 bg-blue-500/5 rounded-full blur-3xl animate-pulse"></div>
         <div className="absolute bottom-0 right-0 w-96 h-96 bg-purple-500/5 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
@@ -269,6 +319,15 @@ const FavouriteProblems = () => {
               {selectedProblem.constraints}
             </pre>
           </div>
+
+          {/* Action Button */}
+          <button
+            onClick={() => handleViewSolution(selectedProblem.id)}
+            className="w-full py-3 bg-gradient-to-r from-purple-500/30 to-blue-500/30 hover:from-purple-500/40 hover:to-blue-500/40 border-2 border-purple-400/50 text-white font-semibold rounded-lg transition-all shadow-lg text-sm flex items-center justify-center gap-2"
+          >
+            <FileCode size={16} />
+            View Solution
+          </button>
         </div>
       </div>
     );

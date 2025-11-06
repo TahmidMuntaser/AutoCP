@@ -5,9 +5,9 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const generateProblem = async ({ topics, rating, suggestion }) => {
   try {
     const model = genAI.getGenerativeModel({ 
-      model: "gemini-2.5-flash",
+      model: "gemini-2.5-pro",
       generationConfig: {
-        temperature: 0.9,
+        temperature: 0.7,  // Reduced for more predictable JSON output
         topK: 40,
         topP: 0.95,
         maxOutputTokens: 8192,
@@ -53,9 +53,12 @@ CRITICAL:
 - Respond ONLY with valid JSON - no extra text before or after
 - All strings must be properly escaped for JSON
 - Use \\n for newlines within string values, not literal line breaks
+- Escape all special characters: use \\" for quotes, \\\\ for backslashes
 - Do NOT include any markdown formatting, code blocks, or explanatory text
 - Ensure the JSON is complete and properly closed
 - Remove any trailing commas before closing brackets
+- Each string value must be complete and properly terminated with a quote
+- If a value gets too long, summarize - do not exceed token limits mid-string
 
 {
   "title": "Creative Problem Title (should be catchy and hint at the concept)",
@@ -73,9 +76,9 @@ CRITICAL:
   "constraints": "List all constraints clearly:\\n• Input size constraints (e.g., 1 ≤ n ≤ 10^5)\\n• Value constraints (e.g., 1 ≤ arr[i] ≤ 10^9)\\n• Time limit: [X] seconds\\n• Memory limit: [X] MB\\n• Any special constraints specific to the problem\\n\\nEnsure constraints are realistic for ${rating} rating and allow the intended solution to pass.",
   
   "hints": [
-    "Subtle hint 1 pointing toward a key observation",
-    "Hint 2 suggesting the right approach or data structure",
-    "Hint 3 addressing a common pitfall or optimization"
+    "Subtle hint 1 pointing toward a key observation (keep under 150 chars)",
+    "Hint 2 suggesting the right approach or data structure (keep under 150 chars)",
+    "Hint 3 addressing a common pitfall or optimization (keep under 150 chars)"
   ],
   
   "tags": ["List", "All", "Relevant", "Algorithm/Data Structure", "Tags"],
@@ -88,12 +91,12 @@ CRITICAL:
   
   "testCaseCount": "Number between 5-10 based on complexity",
   
-  "approach": "Brief 2-3 sentence description of the intended solution approach without giving away complete implementation. Guide thinking in the right direction.",
+  "approach": "Brief 2-3 sentence description of the intended solution approach without giving away complete implementation (keep under 300 chars).",
   
   "keyInsights": [
-    "Critical insight 1 that leads to the solution",
-    "Critical insight 2 about optimization or correctness",
-    "Any mathematical property or pattern to observe"
+    "Critical insight 1 that leads to the solution (keep concise, under 200 chars)",
+    "Critical insight 2 about optimization or correctness (keep concise, under 200 chars)",
+    "Any mathematical property or pattern to observe (keep concise, under 200 chars)"
   ]
 }
 
@@ -108,35 +111,75 @@ CRITICAL:
 ✓ Problem is interesting and intellectually engaging
 ${suggestion ? '✓ Custom story/theme is naturally woven into the problem' : '✓ Problem has engaging narrative context'}
 
-FINAL REMINDER: Output ONLY the JSON object. No markdown, no code blocks, no additional text. Just pure, valid JSON starting with { and ending with }.`;
+FINAL REMINDER: 
+- Output ONLY valid, parseable JSON
+- Start with { and end with }
+- No markdown formatting
+- No additional text before or after the JSON
+- Keep all string values concise to avoid truncation
+- Ensure all quotes are properly escaped
+- Test your JSON mentally before outputting
+
+Generate the problem now as a single, valid JSON object.`;
 
     const result = await model.generateContent({
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       generationConfig: {
-        temperature: 0.9,
+        temperature: 0.7,
         topK: 40,
         topP: 0.95,
         maxOutputTokens: 8192,
-        responseMimeType: "application/json"
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: "object",
+          properties: {
+            title: { type: "string" },
+            description: { type: "string" },
+            examples: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  input: { type: "string" },
+                  output: { type: "string" },
+                  explanation: { type: "string" }
+                },
+                required: ["input", "output", "explanation"]
+              }
+            },
+            constraints: { type: "string" },
+            hints: { type: "array", items: { type: "string" } },
+            tags: { type: "array", items: { type: "string" } },
+            difficulty: { type: "string" },
+            timeComplexity: { type: "string" },
+            spaceComplexity: { type: "string" },
+            testCaseCount: { type: "string" },
+            approach: { type: "string" },
+            keyInsights: { type: "array", items: { type: "string" } }
+          },
+          required: ["title", "description", "examples", "constraints", "timeComplexity", "spaceComplexity"]
+        }
       }
     });
     const response = await result.response;
     const text = response.text();
 
-    // Extract JSON from response (handle cases where Gemini adds markdown formatting)
+    console.log('Raw AI response (first 500 chars):', text.substring(0, 500));
+    console.log('Raw AI response (last 500 chars):', text.substring(Math.max(0, text.length - 500)));
+
+    // Extract JSON from response
     let jsonText = text.trim();
     
     // Remove markdown code blocks if present
     if (jsonText.startsWith('```json')) {
-      jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?$/g, '');
+      jsonText = jsonText.replace(/^```json\n?/, '').replace(/```\n?$/, '');
     } else if (jsonText.startsWith('```')) {
-      jsonText = jsonText.replace(/```\n?/g, '');
+      jsonText = jsonText.replace(/^```\n?/, '').replace(/```\n?$/, '');
     }
 
-    // Also remove any trailing markdown or non-JSON content
     jsonText = jsonText.trim();
     
-    // Find the last closing brace to trim any trailing content
+    // Find the last closing brace
     const lastBraceIndex = jsonText.lastIndexOf('}');
     if (lastBraceIndex !== -1 && lastBraceIndex < jsonText.length - 1) {
       jsonText = jsonText.substring(0, lastBraceIndex + 1);
@@ -147,46 +190,53 @@ FINAL REMINDER: Output ONLY the JSON object. No markdown, no code blocks, no add
       problemData = JSON.parse(jsonText);
     } catch (parseError) {
       console.error('JSON Parse Error:', parseError);
-      console.error('Problematic JSON text (first 1000 chars):', jsonText.substring(0, 1000));
-      console.error('Problematic JSON text (last 500 chars):', jsonText.substring(Math.max(0, jsonText.length - 500)));
+      console.error('Error position:', parseError.message);
+      console.error('Full raw response length:', text.length);
+      console.error('Cleaned JSON (first 1000 chars):', jsonText.substring(0, 1000));
+      console.error('Cleaned JSON (last 500 chars):', jsonText.substring(Math.max(0, jsonText.length - 500)));
       
-      // Try to extract JSON object using regex as fallback
+      // Try more aggressive cleaning
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         try {
-          // Clean the matched JSON more aggressively
-          let cleanJson = jsonMatch[0]
-            .replace(/```json\n?/g, '')
-            .replace(/```\n?/g, '')
-            .trim();
+          let cleanJson = jsonMatch[0].trim();
           
-          // Find last closing brace
+          // Remove markdown if present
+          cleanJson = cleanJson.replace(/^```json\n?/, '').replace(/```\n?$/, '');
+          cleanJson = cleanJson.trim();
+          
           const lastBrace = cleanJson.lastIndexOf('}');
           if (lastBrace !== -1 && lastBrace < cleanJson.length - 1) {
             cleanJson = cleanJson.substring(0, lastBrace + 1);
           }
           
+          console.log('Attempting fallback parse with cleaned JSON (first 500 chars):', cleanJson.substring(0, 500));
           problemData = JSON.parse(cleanJson);
         } catch (fallbackError) {
-          console.error('Fallback parse also failed:', fallbackError);
+          console.error('Fallback parse failed:', fallbackError);
           
-          // Last resort: try to fix common JSON issues
+          // Last resort: try using JSON5 approach - be very lenient
           try {
-            // Remove any trailing commas before closing brackets/braces
-            let fixedJson = jsonMatch[0]
-              .replace(/```json\n?/g, '')
-              .replace(/```\n?/g, '')
-              .replace(/,(\s*[}\]])/g, '$1')
-              .trim();
+            let fixedJson = jsonMatch[0].trim();
+            fixedJson = fixedJson.replace(/^```json\n?/, '').replace(/```\n?$/, '');
             
+            // Remove trailing commas
+            fixedJson = fixedJson.replace(/,(\s*[}\]])/g, '$1');
+            
+            // Find and truncate at last complete closing brace
             const lastBrace = fixedJson.lastIndexOf('}');
             if (lastBrace !== -1) {
               fixedJson = fixedJson.substring(0, lastBrace + 1);
             }
             
+            console.log('Attempting final fallback parse (first 500 chars):', fixedJson.substring(0, 500));
             problemData = JSON.parse(fixedJson);
           } catch (finalError) {
             console.error('All parsing attempts failed:', finalError);
+            // Save the problematic JSON to help debug
+            console.error('=== FULL PROBLEMATIC JSON (for debugging) ===');
+            console.error(jsonText);
+            console.error('=== END OF PROBLEMATIC JSON ===');
             throw new Error('Failed to parse AI response. The response contains invalid JSON format. Please try again.');
           }
         }
@@ -208,6 +258,153 @@ FINAL REMINDER: Output ONLY the JSON object. No markdown, no code blocks, no add
   }
 };
 
+const generateSolution = async ({ problemTitle, problemDescription, examples, constraints, timeComplexity, spaceComplexity, topics, rating }) => {
+  try {
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-2.5-flash",
+      generationConfig: {
+        temperature: 0.6,
+        topK: 30,
+        topP: 0.9,
+        maxOutputTokens: 3072,  // Drastically reduced
+      }
+    });
+
+    const prompt = `Generate a concise competitive programming solution.
+
+**Problem:** ${problemTitle}
+**Complexity:** Time: ${timeComplexity}, Space: ${spaceComplexity}
+
+**Requirements:**
+1. Algorithm explanation: 150-250 words MAX
+2. Exactly 3 key points (under 80 chars each)
+3. Exactly 3 edge cases (under 60 chars each)
+4. Code in Python, C++, Java (minimal comments)
+
+**JSON Output (strict format):**
+{
+  "algorithmExplanation": "Brief explanation here",
+  "codes": [
+    {"language": "python", "code": "code here"},
+    {"language": "cpp", "code": "code here"},
+    {"language": "java", "code": "code here"}
+  ],
+  "timeComplexity": "${timeComplexity}",
+  "spaceComplexity": "${spaceComplexity}",
+  "keyPoints": [
+    "**Point:** brief insight",
+    "**Point:** brief insight",
+    "**Point:** brief insight"
+  ],
+  "edgeCases": [
+    "**Case:** brief desc",
+    "**Case:** brief desc",
+    "**Case:** brief desc"
+  ]
+}
+
+CRITICAL: Keep total response under 3000 tokens. Be concise.`;
+
+    const result = await model.generateContent({
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0.6,
+        topK: 30,
+        topP: 0.9,
+        maxOutputTokens: 3072,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: "object",
+          properties: {
+            algorithmExplanation: { type: "string" },
+            codes: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  language: { type: "string" },
+                  code: { type: "string" }
+                },
+                required: ["language", "code"]
+              },
+              minItems: 3,
+              maxItems: 3
+            },
+            timeComplexity: { type: "string" },
+            spaceComplexity: { type: "string" },
+            keyPoints: { 
+              type: "array", 
+              items: { type: "string" },
+              minItems: 3,
+              maxItems: 3
+            },
+            edgeCases: { 
+              type: "array", 
+              items: { type: "string" },
+              minItems: 3,
+              maxItems: 3
+            }
+          },
+          required: ["algorithmExplanation", "codes", "timeComplexity", "spaceComplexity", "keyPoints", "edgeCases"]
+        }
+      }
+    });
+    
+    const response = await result.response;
+    const text = response.text();
+
+    console.log('Solution response length:', text.length);
+    console.log('Solution response (first 500 chars):', text.substring(0, 500));
+
+    // With responseSchema, the response should be pure JSON
+    let solutionData;
+    try {
+      solutionData = JSON.parse(text);
+      console.log('Successfully parsed solution JSON');
+    } catch (parseError) {
+      console.error('JSON Parse Error:', parseError);
+      console.error('Error at position:', parseError.message);
+      console.error('Full response:', text);
+      
+      // Try to extract and fix the JSON
+      try {
+        let cleanJson = text.trim();
+        
+        // Remove any markdown if present
+        cleanJson = cleanJson.replace(/^```json\n?/g, '').replace(/```\n?$/g, '').replace(/^```/g, '').trim();
+        
+        // Find complete JSON object
+        const firstBrace = cleanJson.indexOf('{');
+        const lastBrace = cleanJson.lastIndexOf('}');
+        
+        if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+          cleanJson = cleanJson.substring(firstBrace, lastBrace + 1);
+          console.log('Attempting to parse cleaned JSON (length: ' + cleanJson.length + ')');
+          solutionData = JSON.parse(cleanJson);
+          console.log('Successfully parsed after cleaning');
+        } else {
+          throw new Error('Could not find valid JSON structure');
+        }
+      } catch (fallbackError) {
+        console.error('Fallback parse failed:', fallbackError);
+        throw new Error('Failed to parse AI solution response. The AI response may be malformed. Please try again.');
+      }
+    }
+
+    // Validate required fields
+    if (!solutionData.algorithmExplanation || !solutionData.codes || solutionData.codes.length === 0) {
+      throw new Error('Generated solution is missing required fields');
+    }
+
+    return solutionData;
+
+  } catch (error) {
+    console.error('Error generating solution with Gemini:', error);
+    throw new Error('Failed to generate solution: ' + error.message);
+  }
+};
+
 module.exports = {
-  generateProblem
+  generateProblem,
+  generateSolution
 };
