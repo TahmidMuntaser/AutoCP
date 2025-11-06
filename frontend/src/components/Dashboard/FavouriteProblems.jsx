@@ -1,101 +1,79 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Trash2, Copy, Heart, ChevronLeft } from 'lucide-react';
 import { showToast } from '../Toast/CustomToast';
+import { getFavoriteProblems, toggleFavorite, deleteProblem } from '../../services/generateProblemApi';
 
 const FavouriteProblems = () => {
-  const [problems, setProblems] = useState([
-    {
-      id: 1,
-      title: 'Two Sum Problem',
-      topic: ['Arrays', 'Math', 'Greedy'],
-      rating: '800',
-      timeComplexity: 'O(n)',
-      spaceComplexity: 'O(n)',
-      description: 'Given an array of integers nums and an integer target, return the indices of the two numbers that add up to target. Given an array of integers nums and an integer target, return the indices of the two numbers that add up to target. Given an array of integers nums and an integer target, return the indices of the two numbers that add up to target. Given an array of integers nums and an integer target, return the indices of the two numbers that add up to target. Given an array of integers nums and an integer target, return the indices of the two numbers that add up to target.',
-      examples: [
-        {
-          input: 'nums = [2,7,11,15], target = 9',
-          output: '[0,1]',
-          explanation: 'nums[0] + nums[1] == 9, so we return [0, 1]'
-        },
-        {
-          input: 'nums = [3,2,4], target = 6',
-          output: '[1,2]',
-          explanation: 'nums[1] + nums[2] == 6, so we return [1, 2]'
-        }
-      ],
-      constraints: '2 ≤ nums.length ≤ 10^4\n-10^9 ≤ nums[i] ≤ 10^9\n-10^9 ≤ target ≤ 10^9',
-      savedAt: '2024-11-05 02:30 PM'
-    },
-    {
-      id: 2,
-      title: 'Binary Tree Traversal',
-      topic: ['Trees'],
-      rating: '1200',
-      timeComplexity: 'O(n)',
-      spaceComplexity: 'O(h)',
-      description: 'Implement in-order, pre-order, and post-order traversal of a binary tree.',
-      examples: [
-        {
-          input: 'tree = [1,null,2,3]',
-          output: '[1,3,2]',
-          explanation: 'The in-order traversal visits left subtree, node, then right subtree'
-        }
-      ],
-      constraints: 'The number of nodes in the tree is in the range [0, 100].\n-100 ≤ Node.val ≤ 100',
-      savedAt: '2024-11-05 01:15 PM'
-    },
-    {
-      id: 3,
-      title: 'Longest Substring Without Repeating',
-      topic: ['Strings', 'Sliding Window'],
-      rating: '1000',
-      timeComplexity: 'O(n)',
-      spaceComplexity: 'O(min(m,n))',
-      description: 'Given a string s, find the length of the longest substring without repeating characters.',
-      examples: [
-        {
-          input: 's = "abcabcbb"',
-          output: '3',
-          explanation: 'The answer is "abc", with the length of 3'
-        }
-      ],
-      constraints: '0 ≤ s.length ≤ 5 * 10^4\ns consists of English letters, digits, symbols and spaces.',
-      savedAt: '2024-11-04 11:45 PM'
-    },
-    {
-      id: 4,
-      title: 'Merge K Sorted Lists',
-      topic: ['Linked Lists', 'Heap'],
-      rating: '1600',
-      timeComplexity: 'O(n log k)',
-      spaceComplexity: 'O(1)',
-      description: 'You are given an array of k linked-lists lists, each linked-list is sorted in ascending order. Merge all the linked-lists into one sorted linked-list.',
-      examples: [
-        {
-          input: 'lists = [[1,4,5],[1,3,4],[2,6]]',
-          output: '[1,1,2,1,3,4,4,5,6]',
-          explanation: 'The linked-lists are merged into one sorted list'
-        }
-      ],
-      constraints: 'k == lists.length\n0 ≤ k ≤ 10^4\n0 ≤ lists[i].length ≤ 500',
-      savedAt: '2024-11-04 10:20 PM'
-    }
-  ]);
+  const [problems, setProblems] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [selectedProblem, setSelectedProblem] = useState(null);
 
-  const handleDeleteProblem = (id) => {
-    setProblems(problems.filter(p => p.id !== id));
-    showToast('Problem removed from favorites', 'success');
+  // Fetch favorite problems on component mount
+  useEffect(() => {
+    fetchFavorites();
+  }, []);
+
+  const fetchFavorites = async () => {
+    try {
+      setLoading(true);
+      const response = await getFavoriteProblems(1, 50);
+      if (response.success) {
+        // Format problems for display
+        const formattedProblems = response.data.map(p => ({
+          id: p._id,
+          title: p.title,
+          topic: p.topics,
+          rating: p.rating,
+          timeComplexity: p.timeComplexity,
+          spaceComplexity: p.spaceComplexity,
+          description: p.description,
+          examples: p.examples,
+          constraints: p.constraints,
+          savedAt: new Date(p.generatedAt).toLocaleString()
+        }));
+        setProblems(formattedProblems);
+      }
+    } catch (error) {
+      console.error('Error fetching favorites:', error);
+      showToast.error('Failed to load favorites');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRemoveFavorite = async (id) => {
+    try {
+      const response = await toggleFavorite(id);
+      if (response.success) {
+        setProblems(problems.filter(p => p.id !== id));
+        showToast.success('Removed from favorites');
+      }
+    } catch (error) {
+      console.error('Error removing favorite:', error);
+      showToast.error('Failed to remove favorite');
+    }
+  };
+
+  const handleDeleteProblem = async (id) => {
+    try {
+      const response = await deleteProblem(id);
+      if (response.success) {
+        setProblems(problems.filter(p => p.id !== id));
+        showToast.success('Problem deleted');
+      }
+    } catch (error) {
+      console.error('Error deleting problem:', error);
+      showToast.error('Failed to delete problem');
+    }
   };
 
   const handleDeleteAll = () => {
     if (problems.length === 0) {
-      showToast('No problems to delete', 'error');
+      showToast.error('No problems to delete');
       return;
     }
-    setProblems([]);
-    showToast('All favorite problems cleared', 'success');
+    // Would need a bulk delete API endpoint for this
+    showToast.error('Bulk delete not implemented yet');
   };
 
   const handleCopy = (problem) => {
@@ -176,9 +154,46 @@ const FavouriteProblems = () => {
               <div className="w-1 h-6 bg-linear-to-b from-blue-500 to-purple-500 rounded"></div>
               <h2 className="text-xl font-bold text-white">Problem Statement</h2>
             </div>
-            <p className="text-base text-gray-300 leading-relaxed bg-[#00303d]/40 border-l-2 border-blue-500/30 pl-4 py-3 rounded">
-              {selectedProblem.description}
-            </p>
+            <div className="text-base text-gray-300 leading-relaxed bg-[#00303d]/40 border-l-2 border-blue-500/30 pl-4 py-3 rounded whitespace-pre-wrap break-words">
+              {selectedProblem.description.split('\n').map((paragraph, idx) => {
+                if (!paragraph.trim()) return null;
+                
+                // Handle bullet points
+                if (paragraph.trim().startsWith('•') || paragraph.trim().startsWith('-') || paragraph.trim().match(/^\d+\./)) {
+                  // Process bullet point content for bold formatting
+                  const bulletContent = paragraph.replace(/^[•\-]\s*/, '').replace(/^\d+\.\s*/, '');
+                  const formattedBullet = bulletContent.split(/(`[^`]+`|'[^']+'|\*\*[^*]+\*\*)/).map((part, i) => {
+                    if ((part.startsWith('`') && part.endsWith('`')) || (part.startsWith("'") && part.endsWith("'"))) {
+                      return <strong key={i} className="text-white font-bold">{part.slice(1, -1)}</strong>;
+                    }
+                    if (part.startsWith('**') && part.endsWith('**')) {
+                      return <strong key={i} className="text-white font-bold">{part.slice(2, -2)}</strong>;
+                    }
+                    return part;
+                  });
+                  
+                  return (
+                    <div key={idx} className="flex gap-2 my-2">
+                      <span className="text-blue-400 mt-1">•</span>
+                      <span className="flex-1">{formattedBullet}</span>
+                    </div>
+                  );
+                }
+                
+                // Handle bold text with backticks `text`, single quotes 'text', or **text**
+                const formattedText = paragraph.split(/(`[^`]+`|'[^']+'|\*\*[^*]+\*\*)/).map((part, i) => {
+                  if ((part.startsWith('`') && part.endsWith('`')) || (part.startsWith("'") && part.endsWith("'"))) {
+                    return <strong key={i} className="text-white font-bold">{part.slice(1, -1)}</strong>;
+                  }
+                  if (part.startsWith('**') && part.endsWith('**')) {
+                    return <strong key={i} className="text-white font-bold">{part.slice(2, -2)}</strong>;
+                  }
+                  return part;
+                });
+                
+                return <p key={idx} className="mb-3">{formattedText}</p>;
+              })}
+            </div>
           </div>
 
           {/* Examples */}
@@ -191,18 +206,52 @@ const FavouriteProblems = () => {
               {selectedProblem.examples.map((example, index) => (
                 <div key={index} className="bg-[#00303d]/40 border border-blue-500/20 rounded-lg p-3">
                   <div className="grid md:grid-cols-2 gap-3 mb-2">
-                    <div>
-                      <p className="text-cyan-400 font-semibold text-sm mb-1">Input</p>
-                      <p className="text-gray-300 font-mono text-sm">{example.input}</p>
+                    <div className="relative group">
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-cyan-400 font-semibold text-sm">Input</p>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(example.input);
+                            showToast.success('Input copied!');
+                          }}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-cyan-500/20 rounded"
+                          title="Copy input"
+                        >
+                          <Copy size={12} className="text-cyan-400" />
+                        </button>
+                      </div>
+                      <p className="text-gray-300 font-mono text-sm break-words">{example.input}</p>
                     </div>
-                    <div>
-                      <p className="text-green-400 font-semibold text-sm mb-1">Output</p>
-                      <p className="text-gray-300 font-mono text-sm">{example.output}</p>
+                    <div className="relative group">
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-green-400 font-semibold text-sm">Output</p>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(example.output);
+                            showToast.success('Output copied!');
+                          }}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-green-500/20 rounded"
+                          title="Copy output"
+                        >
+                          <Copy size={12} className="text-green-400" />
+                        </button>
+                      </div>
+                      <p className="text-gray-300 font-mono text-sm break-words">{example.output}</p>
                     </div>
                   </div>
                   {example.explanation && (
                     <div className="border-t border-blue-500/10 pt-2">
-                      <p className="text-gray-400 text-sm line-clamp-2">{example.explanation}</p>
+                      <p className="text-gray-400 text-sm whitespace-pre-wrap break-words">
+                        {example.explanation.split(/(`[^`]+`|'[^']+'|\*\*[^*]+\*\*)/).map((part, i) => {
+                          if ((part.startsWith('`') && part.endsWith('`')) || (part.startsWith("'") && part.endsWith("'"))) {
+                            return <strong key={i} className="text-white font-bold">{part.slice(1, -1)}</strong>;
+                          }
+                          if (part.startsWith('**') && part.endsWith('**')) {
+                            return <strong key={i} className="text-white font-bold">{part.slice(2, -2)}</strong>;
+                          }
+                          return part;
+                        })}
+                      </p>
                     </div>
                   )}
                 </div>
