@@ -7,6 +7,7 @@ import ScrollToTop from './components/ScrollTop/ScrollTop';
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
 import HomePage from './pages/public/HomePage';
+import AboutPage from './pages/public/AboutPage';
 import Dashboard from './pages/dashboard/Dashboard';
 import CustomToast from './components/Toast/CustomToast';
 import { AuthProvider } from './contexts/AuthContext';
@@ -21,6 +22,7 @@ function App() {
         {/* Public Routes - Home page and contact accessible to everyone */}
         <Route path="/" element={<PublicLayout />}>
           <Route index element={<HomePage />} />
+          <Route path="about" element={<AboutPage />} />
         </Route>
         
         {/* User Routes - Protected for regular users */}

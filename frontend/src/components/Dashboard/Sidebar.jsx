@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, History, Heart, User, LogOut, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, History, Heart, User, LogOut, X, ChevronLeft, ChevronRight, Home } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { showToast } from '../../components/Toast/CustomToast';
@@ -94,6 +94,21 @@ const Sidebar = ({ activeSection, setActiveSection, isOpen, toggleSidebar }) => 
               </button>
             )}
           </div>
+        </div>
+
+        {/* Back to Home Button */}
+        <div className={`px-3 py-3 ${!isOpen && 'hidden md:flex md:justify-center md:px-2'}`}>
+          <button
+            onClick={() => {
+              navigate('/');
+              showToast.success('Going back home...');
+            }}
+            className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg bg-linear-to-r from-blue-500/20 to-purple-500/20 border-2 border-blue-500/30 text-blue-300 hover:border-blue-400 hover:from-blue-500/30 hover:to-purple-500/30 transition-all duration-200 group ${!isOpen && 'md:justify-center md:px-2'}`}
+            title={!isOpen ? 'Back to Home' : ''}
+          >
+            <Home size={20} className="group-hover:scale-110 transition-transform" />
+            {isOpen && <span className="font-semibold">Back to Home</span>}
+          </button>
         </div>
 
         {/* Menu Items */}
