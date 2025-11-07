@@ -263,139 +263,93 @@ const generateSolution = async ({ problemTitle, problemDescription, examples, co
     const model = genAI.getGenerativeModel({ 
       model: "gemini-2.5-flash",
       generationConfig: {
-        temperature: 0.6,
-        topK: 30,
-        topP: 0.9,
-        maxOutputTokens: 3072,  // Drastically reduced
+        temperature: 0.7,
+        topK: 40,
+        topP: 0.95,
+        maxOutputTokens: 4096,
       }
     });
 
-    const prompt = `Generate a concise competitive programming solution.
+    // Ensure safe string handling
+    const safeDescription = (problemDescription || '').substring(0, 800);
+    const safeConstraints = (constraints || '').substring(0, 300);
+    const safeExamples = Array.isArray(examples) ? examples.slice(0, 2) : [];
+
+    // Create a simple, text-based prompt (no JSON requirement)
+    const prompt = `Generate a complete solution for this competitive programming problem.
 
 **Problem:** ${problemTitle}
-**Complexity:** Time: ${timeComplexity}, Space: ${spaceComplexity}
 
-**Requirements:**
-1. Algorithm explanation: 150-250 words MAX
-2. Exactly 3 key points (under 80 chars each)
-3. Exactly 3 edge cases (under 60 chars each)
-4. Code in Python, C++, Java (minimal comments)
+**Description:** ${safeDescription}
 
-**JSON Output (strict format):**
-{
-  "algorithmExplanation": "Brief explanation here",
-  "codes": [
-    {"language": "python", "code": "code here"},
-    {"language": "cpp", "code": "code here"},
-    {"language": "java", "code": "code here"}
-  ],
-  "timeComplexity": "${timeComplexity}",
-  "spaceComplexity": "${spaceComplexity}",
-  "keyPoints": [
-    "**Point:** brief insight",
-    "**Point:** brief insight",
-    "**Point:** brief insight"
-  ],
-  "edgeCases": [
-    "**Case:** brief desc",
-    "**Case:** brief desc",
-    "**Case:** brief desc"
-  ]
-}
+**Examples:**
+${safeExamples.map((ex, i) => `Example ${i + 1}:\nInput: ${ex.input}\nOutput: ${ex.output}`).join('\n\n')}
 
-CRITICAL: Keep total response under 3000 tokens. Be concise.`;
+**Constraints:** ${safeConstraints}
+**Expected Complexity:** Time: ${timeComplexity}, Space: ${spaceComplexity}
+
+Please provide:
+
+1. **Algorithm Explanation** (200-350 words): Explain the approach and why it works
+
+2. **Python Solution:**
+\`\`\`python
+[Complete Python code]
+\`\`\`
+
+3. **C++ Solution:**
+\`\`\`cpp
+[Complete C++ code]
+\`\`\`
+
+4. **Java Solution:**
+\`\`\`java
+[Complete Java code]
+\`\`\`
+
+5. **Key Points** (3 points):
+- Point 1
+- Point 2
+- Point 3
+
+6. **Edge Cases** (3 cases):
+- Edge case 1
+- Edge case 2
+- Edge case 3
+
+Use clear section headers exactly as shown above.`;
 
     const result = await model.generateContent({
       contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0.6,
-        topK: 30,
-        topP: 0.9,
-        maxOutputTokens: 3072,
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: "object",
-          properties: {
-            algorithmExplanation: { type: "string" },
-            codes: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  language: { type: "string" },
-                  code: { type: "string" }
-                },
-                required: ["language", "code"]
-              },
-              minItems: 3,
-              maxItems: 3
-            },
-            timeComplexity: { type: "string" },
-            spaceComplexity: { type: "string" },
-            keyPoints: { 
-              type: "array", 
-              items: { type: "string" },
-              minItems: 3,
-              maxItems: 3
-            },
-            edgeCases: { 
-              type: "array", 
-              items: { type: "string" },
-              minItems: 3,
-              maxItems: 3
-            }
-          },
-          required: ["algorithmExplanation", "codes", "timeComplexity", "spaceComplexity", "keyPoints", "edgeCases"]
-        }
-      }
     });
     
     const response = await result.response;
+    
+    // Check for blocking
+    if (response.promptFeedback?.blockReason) {
+      console.error('Solution generation blocked:', response.promptFeedback.blockReason);
+      throw new Error(`Content blocked: ${response.promptFeedback.blockReason}`);
+    }
+    
     const text = response.text();
-
     console.log('Solution response length:', text.length);
     console.log('Solution response (first 500 chars):', text.substring(0, 500));
-
-    // With responseSchema, the response should be pure JSON
-    let solutionData;
-    try {
-      solutionData = JSON.parse(text);
-      console.log('Successfully parsed solution JSON');
-    } catch (parseError) {
-      console.error('JSON Parse Error:', parseError);
-      console.error('Error at position:', parseError.message);
-      console.error('Full response:', text);
-      
-      // Try to extract and fix the JSON
-      try {
-        let cleanJson = text.trim();
-        
-        // Remove any markdown if present
-        cleanJson = cleanJson.replace(/^```json\n?/g, '').replace(/```\n?$/g, '').replace(/^```/g, '').trim();
-        
-        // Find complete JSON object
-        const firstBrace = cleanJson.indexOf('{');
-        const lastBrace = cleanJson.lastIndexOf('}');
-        
-        if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-          cleanJson = cleanJson.substring(firstBrace, lastBrace + 1);
-          console.log('Attempting to parse cleaned JSON (length: ' + cleanJson.length + ')');
-          solutionData = JSON.parse(cleanJson);
-          console.log('Successfully parsed after cleaning');
-        } else {
-          throw new Error('Could not find valid JSON structure');
-        }
-      } catch (fallbackError) {
-        console.error('Fallback parse failed:', fallbackError);
-        throw new Error('Failed to parse AI solution response. The AI response may be malformed. Please try again.');
-      }
+    
+    if (!text || text.trim().length === 0) {
+      console.error('Empty solution response');
+      throw new Error('AI returned empty response. Please try again.');
     }
 
+    // Parse the text response manually
+    const solutionData = parseSolutionFromText(text, timeComplexity, spaceComplexity);
+    
     // Validate required fields
     if (!solutionData.algorithmExplanation || !solutionData.codes || solutionData.codes.length === 0) {
       throw new Error('Generated solution is missing required fields');
     }
 
+    console.log('Successfully parsed solution with', solutionData.codes.length, 'code implementations');
+    
     return solutionData;
 
   } catch (error) {
@@ -404,7 +358,256 @@ CRITICAL: Keep total response under 3000 tokens. Be concise.`;
   }
 };
 
+const generateTestcases = async ({ problemTitle, problemDescription, examples, constraints, inputFormat, outputFormat }) => {
+  try {
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-2.5-flash",
+      generationConfig: {
+        temperature: 0.8,
+        topK: 40,
+        topP: 0.95,
+        maxOutputTokens: 4096,
+      }
+    });
+
+    // Ensure all inputs are strings
+    const safeDescription = (problemDescription || '').substring(0, 800);
+    const safeConstraints = (constraints || '').substring(0, 400);
+    const safeExamples = Array.isArray(examples) ? examples.slice(0, 2) : [];
+
+    const prompt = `Generate 10-15 test cases for this problem. Just provide input and output pairs.
+
+**Problem:** ${problemTitle}
+
+**Description:** ${safeDescription}
+
+**Example:**
+${safeExamples.map((ex, i) => `Input: ${ex.input}\nOutput: ${ex.output}`).join('\n\n')}
+
+**Constraints:** ${safeConstraints}
+
+Generate 10-15 diverse test cases covering:
+- Basic cases (simple inputs)
+- Edge cases (boundary values)
+- Large cases (maximum constraints)
+
+Provide ONLY input and output pairs. Match the exact format from examples.`;
+
+    const result = await model.generateContent({
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+    });
+    
+    const response = await result.response;
+    
+    // Check for blocking
+    if (response.promptFeedback?.blockReason) {
+      console.error('Testcase generation blocked:', response.promptFeedback.blockReason);
+      throw new Error(`Content blocked: ${response.promptFeedback.blockReason}`);
+    }
+    
+    const text = response.text();
+    console.log('Testcase raw response length:', text.length);
+    console.log('First 500 chars:', text.substring(0, 500));
+    
+    if (!text || text.trim().length === 0) {
+      console.error('Empty testcase response');
+      throw new Error('AI returned empty response. Please try again.');
+    }
+
+    // Parse the raw text response and format it ourselves
+    const testcases = parseTestcasesFromText(text);
+    
+    if (!testcases || testcases.length < 5) {
+      console.log('Only parsed', testcases.length, 'testcases, expected at least 5');
+      throw new Error(`Only generated ${testcases.length} complete testcases. Please try again.`);
+    }
+
+    console.log('Successfully parsed', testcases.length, 'complete testcases');
+    
+    return { testcases };
+
+  } catch (error) {
+    console.error('Error generating testcases with Gemini:', error);
+    throw new Error('Failed to generate testcases: ' + error.message);
+  }
+};
+
+// Helper function to parse testcases from raw AI text
+function parseTestcasesFromText(text) {
+  const testcases = [];
+  
+  // Split by common delimiters to find test cases
+  const lines = text.split('\n');
+  let currentInput = '';
+  let currentOutput = '';
+  let isReadingInput = false;
+  let isReadingOutput = false;
+  let testcaseCount = 0;
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    
+    // Skip empty lines when not reading
+    if (!line && !isReadingInput && !isReadingOutput) {
+      continue;
+    }
+    
+    // Detect input markers
+    if (line.match(/^(Test\s*Case\s*\d+|Input\s*\d*|TC\s*\d+):/i) || 
+        line.match(/^Input:/i)) {
+      // Save previous testcase if it's complete (has both input and output)
+      if (currentInput && currentOutput) {
+        const type = testcaseCount < 3 ? 'basic' : 
+                     testcaseCount < 7 ? 'edge' : 'large';
+        testcases.push({
+          type,
+          input: currentInput.trim(),
+          output: currentOutput.trim()
+        });
+        testcaseCount++;
+      }
+      
+      // Start new testcase
+      currentInput = '';
+      currentOutput = '';
+      isReadingInput = true;
+      isReadingOutput = false;
+      
+      // Check if input is on same line
+      const inputMatch = line.match(/Input:\s*(.+)/i);
+      if (inputMatch) {
+        currentInput = inputMatch[1];
+      }
+      continue;
+    }
+    
+    // Detect output markers
+    if (line.match(/^Output:/i)) {
+      isReadingInput = false;
+      isReadingOutput = true;
+      
+      // Check if output is on same line
+      const outputMatch = line.match(/Output:\s*(.+)/i);
+      if (outputMatch) {
+        currentOutput = outputMatch[1];
+      }
+      continue;
+    }
+    
+    // Read multi-line input/output
+    if (isReadingInput && line.length > 0 && !line.match(/^(Output|Test|TC|---|\*\*)/i)) {
+      currentInput += (currentInput ? '\n' : '') + line;
+    }
+    
+    if (isReadingOutput && line.length > 0 && !line.match(/^(Input|Test|TC|---|\*\*)/i)) {
+      currentOutput += (currentOutput ? '\n' : '') + line;
+    }
+  }
+  
+  // Add last testcase ONLY if it has both input AND output
+  if (currentInput && currentOutput) {
+    const type = testcaseCount < 3 ? 'basic' : 
+                 testcaseCount < 7 ? 'edge' : 'large';
+    testcases.push({
+      type,
+      input: currentInput.trim(),
+      output: currentOutput.trim()
+    });
+  } else if (currentInput && !currentOutput) {
+    console.log('Skipping incomplete testcase (missing output)');
+  }
+  
+  return testcases;
+}
+
+// Helper function to parse solution from raw AI text
+function parseSolutionFromText(text, timeComplexity, spaceComplexity) {
+  const result = {
+    algorithmExplanation: '',
+    codes: [],
+    timeComplexity: timeComplexity || 'Not specified',
+    spaceComplexity: spaceComplexity || 'Not specified',
+    keyPoints: [],
+    edgeCases: []
+  };
+  
+  // Extract algorithm explanation (everything before first code block)
+  const explanationMatch = text.match(/\*\*Algorithm Explanation\*\*\s*[\:\-]?\s*\n\n?([\s\S]*?)(?=\n\s*\*\*|```)/i);
+  if (explanationMatch) {
+    result.algorithmExplanation = explanationMatch[1].trim();
+  } else {
+    // Try to find any text before first code block
+    const beforeCode = text.split('```')[0];
+    if (beforeCode && beforeCode.length > 50) {
+      result.algorithmExplanation = beforeCode.trim();
+    }
+  }
+  
+  // Extract code blocks
+  const codeBlockRegex = /```(\w+)\s*\n([\s\S]*?)```/g;
+  let match;
+  const codeMap = { python: false, cpp: false, java: false };
+  
+  while ((match = codeBlockRegex.exec(text)) !== null) {
+    const lang = match[1].toLowerCase();
+    const code = match[2].trim();
+    
+    if (lang === 'python' && !codeMap.python) {
+      result.codes.push({ language: 'python', code });
+      codeMap.python = true;
+    } else if ((lang === 'cpp' || lang === 'c++') && !codeMap.cpp) {
+      result.codes.push({ language: 'cpp', code });
+      codeMap.cpp = true;
+    } else if (lang === 'java' && !codeMap.java) {
+      result.codes.push({ language: 'java', code });
+      codeMap.java = true;
+    }
+  }
+  
+  // Extract key points
+  const keyPointsMatch = text.match(/\*\*Key Points\*\*\s*[\:\-]?\s*\n([\s\S]*?)(?=\n\s*\*\*|$)/i);
+  if (keyPointsMatch) {
+    const points = keyPointsMatch[1].split('\n').filter(line => line.trim().match(/^[-\*•]/));
+    result.keyPoints = points.map(p => p.trim().replace(/^[-\*•]\s*/, '')).slice(0, 3);
+  }
+  
+  // Extract edge cases
+  const edgeCasesMatch = text.match(/\*\*Edge Cases\*\*\s*[\:\-]?\s*\n([\s\S]*?)(?=\n\s*\*\*|$)/i);
+  if (edgeCasesMatch) {
+    const cases = edgeCasesMatch[1].split('\n').filter(line => line.trim().match(/^[-\*•]/));
+    result.edgeCases = cases.map(c => c.trim().replace(/^[-\*•]\s*/, '')).slice(0, 3);
+  }
+  
+  // Ensure we have at least something in key points and edge cases
+  if (result.keyPoints.length === 0) {
+    result.keyPoints = [
+      'Implement the core algorithm efficiently',
+      'Handle edge cases properly',
+      'Optimize time and space complexity'
+    ];
+  }
+  
+  if (result.edgeCases.length === 0) {
+    result.edgeCases = [
+      'Empty input',
+      'Single element',
+      'Maximum constraints'
+    ];
+  }
+  
+  // Pad to exactly 3 items if needed
+  while (result.keyPoints.length < 3) {
+    result.keyPoints.push('Review problem constraints carefully');
+  }
+  while (result.edgeCases.length < 3) {
+    result.edgeCases.push('Test with boundary values');
+  }
+  
+  return result;
+}
+
 module.exports = {
   generateProblem,
-  generateSolution
+  generateSolution,
+  generateTestcases
 };

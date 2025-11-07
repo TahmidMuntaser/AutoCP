@@ -11,12 +11,15 @@ import {
   Heart,
   Download,
   Copy,
-  FileCode
+  FileCode,
+  ListChecks
 } from 'lucide-react';
 import { showToast } from '../Toast/CustomToast';
 import { generateProblem, toggleFavorite as toggleFavoriteApi } from '../../services/generateProblemApi';
 import { generateSolution as generateSolutionApi, getSolution } from '../../services/generateSolutionApi';
+import { generateTestcases as generateTestcasesApi, getTestcases } from '../../services/generateTestcaseApi';
 import SolutionModal from '../Solution/SolutionModal';
+import TestcaseModal from '../Testcase/TestcaseModal';
 
 const ProblemGenerator = () => {
   const [formData, setFormData] = useState({
@@ -33,6 +36,9 @@ const ProblemGenerator = () => {
   const [solutionModalOpen, setSolutionModalOpen] = useState(false);
   const [solution, setSolution] = useState(null);
   const [solutionLoading, setSolutionLoading] = useState(false);
+  const [testcaseModalOpen, setTestcaseModalOpen] = useState(false);
+  const [testcases, setTestcases] = useState(null);
+  const [testcaseLoading, setTestcaseLoading] = useState(false);
 
   const topics = [
     { id: 'dp', name: 'Dynamic Programming', icon: Brain, color: 'purple' },
@@ -276,6 +282,44 @@ const ProblemGenerator = () => {
     }
   };
 
+  const handleViewTestcases = async () => {
+    if (!generatedProblem?.id) return;
+
+    try {
+      setTestcaseModalOpen(true);
+      setTestcaseLoading(true);
+
+      // Try to get existing testcases first
+      try {
+        const response = await getTestcases(generatedProblem.id);
+        if (response.success) {
+          setTestcases(response.data);
+          setTestcaseLoading(false);
+          return;
+        }
+      } catch (error) {
+        // Testcases don't exist, generate new ones
+        console.log('Testcases not found, generating new ones...');
+      }
+
+      // Generate new testcases
+      const toastId = showToast.loading('Generating testcases...');
+      const response = await generateTestcasesApi(generatedProblem.id);
+      
+      if (response.success) {
+        setTestcases(response.data);
+        showToast.dismiss(toastId);
+        showToast.success('Testcases generated successfully!');
+      }
+    } catch (error) {
+      console.error('Error getting testcases:', error);
+      showToast.error(error.message || 'Failed to get testcases');
+      setTestcaseModalOpen(false);
+    } finally {
+      setTestcaseLoading(false);
+    }
+  };
+
   return (
     <div className="w-full min-h-screen bg-[#002029] overflow-hidden relative p-4">
       {/* Solution Modal */}
@@ -284,6 +328,14 @@ const ProblemGenerator = () => {
         onClose={() => setSolutionModalOpen(false)}
         solution={solution}
         loading={solutionLoading}
+      />
+
+      {/* Testcase Modal */}
+      <TestcaseModal
+        isOpen={testcaseModalOpen}
+        onClose={() => setTestcaseModalOpen(false)}
+        testcases={testcases}
+        loading={testcaseLoading}
       />
 
       {/* If problem is generated, show problem view */}
@@ -552,13 +604,20 @@ const ProblemGenerator = () => {
             </div>
 
             {/* Action Buttons */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <button
                 onClick={handleViewSolution}
                 className="py-3 bg-gradient-to-r from-purple-500/30 to-blue-500/30 hover:from-purple-500/40 hover:to-blue-500/40 border-2 border-purple-400/50 text-white font-semibold rounded-lg transition-all shadow-lg text-sm flex items-center justify-center gap-2"
               >
                 <FileCode size={16} />
                 View Solution
+              </button>
+              <button
+                onClick={handleViewTestcases}
+                className="py-3 bg-gradient-to-r from-cyan-500/30 to-green-500/30 hover:from-cyan-500/40 hover:to-green-500/40 border-2 border-cyan-400/50 text-white font-semibold rounded-lg transition-all shadow-lg text-sm flex items-center justify-center gap-2"
+              >
+                <ListChecks size={16} />
+                Test Cases
               </button>
               <button
                 onClick={generateAnother}
@@ -847,7 +906,7 @@ const ProblemGenerator = () => {
         </div>
       </div>
 
-      <style jsx>{`
+      <style dangerouslySetInnerHTML={{__html: `
         @keyframes fadeIn {
           from {
             opacity: 0;
@@ -872,7 +931,7 @@ const ProblemGenerator = () => {
         .animate-shimmer {
           animation: shimmer 2s infinite;
         }
-      `}</style>
+      `}} />
         </>
       )}
     </div>
