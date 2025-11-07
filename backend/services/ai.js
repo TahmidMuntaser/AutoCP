@@ -266,58 +266,58 @@ const generateSolution = async ({ problemTitle, problemDescription, examples, co
         temperature: 0.7,
         topK: 40,
         topP: 0.95,
-        maxOutputTokens: 4096,
+        maxOutputTokens: 8192,
       }
     });
 
     // Ensure safe string handling
-    const safeDescription = (problemDescription || '').substring(0, 800);
-    const safeConstraints = (constraints || '').substring(0, 300);
+    const safeDescription = (problemDescription || '').substring(0, 600);
+    const safeConstraints = (constraints || '').substring(0, 200);
     const safeExamples = Array.isArray(examples) ? examples.slice(0, 2) : [];
 
-    // Create a simple, text-based prompt (no JSON requirement)
-    const prompt = `Generate a complete solution for this competitive programming problem.
+    // Create a concise prompt to avoid truncation
+    const prompt = `Generate solution for: ${problemTitle}
 
-**Problem:** ${problemTitle}
+Problem: ${safeDescription}
 
-**Description:** ${safeDescription}
+Examples:
+${safeExamples.map((ex, i) => `${i + 1}. Input: ${ex.input}\nOutput: ${ex.output}`).join('\n')}
 
-**Examples:**
-${safeExamples.map((ex, i) => `Example ${i + 1}:\nInput: ${ex.input}\nOutput: ${ex.output}`).join('\n\n')}
+Constraints: ${safeConstraints}
 
-**Constraints:** ${safeConstraints}
-**Expected Complexity:** Time: ${timeComplexity}, Space: ${spaceComplexity}
+IMPORTANT: Provide complete, working code in ALL THREE languages. Each code block must be complete and runnable.
 
-Please provide:
+Format (use exact headers):
 
-1. **Algorithm Explanation** (200-350 words): Explain the approach and why it works
+### 1. Algorithm Explanation
+[2-3 paragraphs explaining the approach]
 
-2. **Python Solution:**
+### 2. Python Solution
 \`\`\`python
-[Complete Python code]
+[Complete runnable Python code]
 \`\`\`
 
-3. **C++ Solution:**
+### 3. C++ Solution
 \`\`\`cpp
-[Complete C++ code]
+[Complete runnable C++ code]
 \`\`\`
 
-4. **Java Solution:**
+### 4. Java Solution
 \`\`\`java
-[Complete Java code]
+[Complete runnable Java code]
 \`\`\`
 
-5. **Key Points** (3 points):
+### 5. Key Points
 - Point 1
 - Point 2
 - Point 3
 
-6. **Edge Cases** (3 cases):
-- Edge case 1
-- Edge case 2
-- Edge case 3
+### 6. Edge Cases
+- Case 1
+- Case 2
+- Case 3
 
-Use clear section headers exactly as shown above.`;
+START NOW:`;
 
     const result = await model.generateContent({
       contents: [{ role: "user", parts: [{ text: prompt }] }],
@@ -334,18 +334,34 @@ Use clear section headers exactly as shown above.`;
     const text = response.text();
     console.log('Solution response length:', text.length);
     console.log('Solution response (first 500 chars):', text.substring(0, 500));
+    console.log('Solution response (last 500 chars):', text.substring(Math.max(0, text.length - 500)));
     
     if (!text || text.trim().length === 0) {
       console.error('Empty solution response');
       throw new Error('AI returned empty response. Please try again.');
     }
+    
+    // Check if response seems truncated (should have at least 3 code blocks)
+    const codeBlockCount = (text.match(/```/g) || []).length / 2;
+    if (codeBlockCount < 3) {
+      console.warn('Response may be truncated - found only', codeBlockCount, 'code blocks');
+      console.log('Full response:', text);
+      throw new Error('AI response appears incomplete. Please try again.');
+    }
 
     // Parse the text response manually
     const solutionData = parseSolutionFromText(text, timeComplexity, spaceComplexity);
     
-    // Validate required fields
-    if (!solutionData.algorithmExplanation || !solutionData.codes || solutionData.codes.length === 0) {
-      throw new Error('Generated solution is missing required fields');
+    // Validate required fields with more detailed error messages
+    if (!solutionData.algorithmExplanation || solutionData.algorithmExplanation.length < 20) {
+      console.error('Missing or too short algorithm explanation:', solutionData.algorithmExplanation);
+      throw new Error('Generated solution has invalid algorithm explanation');
+    }
+    
+    if (!solutionData.codes || solutionData.codes.length === 0) {
+      console.error('No code implementations found in response');
+      console.error('Full response text:', text);
+      throw new Error('Generated solution has no code implementations. Please try again.');
     }
 
     console.log('Successfully parsed solution with', solutionData.codes.length, 'code implementations');
@@ -521,6 +537,32 @@ function parseTestcasesFromText(text) {
 }
 
 // Helper function to parse solution from raw AI text
+// Helper function to format and clean text (LaTeX, markdown, etc.)
+function formatText(text) {
+  if (!text) return '';
+  
+  return text
+    // Convert LaTeX math notation to plain text/Unicode
+    .replace(/\$([^$]+)\$/g, (match, p1) => {
+      // Handle exponents: 10^9 -> 10⁹
+      let formatted = p1.replace(/(\d+)\^(\d+)/g, (m, base, exp) => {
+        const superscripts = { '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹' };
+        return base + exp.split('').map(d => superscripts[d] || d).join('');
+      });
+      // Handle common math symbols
+      formatted = formatted.replace(/\\times/g, '×').replace(/\\leq/g, '≤').replace(/\\geq/g, '≥');
+      return formatted;
+    })
+    // Clean up mixed formatting patterns like: **text:**, `text`
+    .replace(/\*\*\s*([^*]+?)\s*:\s*\*\*,?\s*/g, '$1: ')
+    .replace(/\*\*\s*([^*]+?)\s*\*\*\s*:\s*/g, '**$1**: ')
+    // Clean backtick spacing
+    .replace(/`\s+([^`]+?)\s+`/g, '`$1`')
+    // Normalize multiple spaces
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function parseSolutionFromText(text, timeComplexity, spaceComplexity) {
   const result = {
     algorithmExplanation: '',
@@ -531,31 +573,67 @@ function parseSolutionFromText(text, timeComplexity, spaceComplexity) {
     edgeCases: []
   };
   
-  // Extract algorithm explanation (everything before first code block)
-  const explanationMatch = text.match(/\*\*Algorithm Explanation\*\*\s*[\:\-]?\s*\n\n?([\s\S]*?)(?=\n\s*\*\*|```)/i);
+  console.log('Parsing solution text, length:', text.length);
+  
+  // Extract algorithm explanation - try multiple patterns
+  let explanationMatch = text.match(/###?\s*\d+\.\s*\*\*?Algorithm Explanation\*\*?\s*[\:\-]?\s*\n\n?([\s\S]*?)(?=\n\s*###?\s*\d+\.|```|$)/i);
+  if (!explanationMatch) {
+    explanationMatch = text.match(/\*\*Algorithm Explanation\*\*\s*[\:\-]?\s*\n\n?([\s\S]*?)(?=\n\s*\*\*|```|$)/i);
+  }
+  if (!explanationMatch) {
+    // Try numbered section: "1. Algorithm Explanation"
+    explanationMatch = text.match(/\d+\.\s*Algorithm Explanation\s*[\:\-]?\s*\n\n?([\s\S]*?)(?=\n\s*\d+\.|```|$)/i);
+  }
+  
   if (explanationMatch) {
-    result.algorithmExplanation = explanationMatch[1].trim();
+    result.algorithmExplanation = formatText(explanationMatch[1].trim());
+    console.log('Found algorithm explanation, length:', result.algorithmExplanation.length);
   } else {
-    // Try to find any text before first code block
+    // Fallback: extract any substantial text before first code block
     const beforeCode = text.split('```')[0];
-    if (beforeCode && beforeCode.length > 50) {
-      result.algorithmExplanation = beforeCode.trim();
+    if (beforeCode && beforeCode.length > 100) {
+      // Remove common headers/markers
+      let cleaned = beforeCode.replace(/^###?\s*\d+\.\s*/gm, '').trim();
+      result.algorithmExplanation = formatText(cleaned.substring(0, 800)); // Cap at 800 chars
+      console.log('Using fallback explanation from text before code blocks');
+    } else {
+      // Last resort: use a generic explanation
+      result.algorithmExplanation = 'This solution implements the required algorithm based on the problem constraints and complexity requirements.';
+      console.log('Using generic explanation as fallback');
     }
   }
   
-  // Extract code blocks
-  const codeBlockRegex = /```(\w+)\s*\n([\s\S]*?)```/g;
+  // Extract code blocks with more flexible regex
+  const codeBlockRegex = /```(\w+)?\s*\n([\s\S]*?)```/g;
   let match;
   const codeMap = { python: false, cpp: false, java: false };
   
   while ((match = codeBlockRegex.exec(text)) !== null) {
-    const lang = match[1].toLowerCase();
+    let lang = (match[1] || '').toLowerCase().trim();
     const code = match[2].trim();
     
-    if (lang === 'python' && !codeMap.python) {
+    // Skip empty code blocks
+    if (!code || code.length < 10) {
+      continue;
+    }
+    
+    // Infer language if not specified
+    if (!lang) {
+      if (code.includes('def ') || code.includes('import ')) {
+        lang = 'python';
+      } else if (code.includes('#include') || code.includes('std::')) {
+        lang = 'cpp';
+      } else if (code.includes('public class') || code.includes('public static void')) {
+        lang = 'java';
+      }
+    }
+    
+    console.log('Found code block, language:', lang, 'length:', code.length);
+    
+    if ((lang === 'python' || lang === 'py') && !codeMap.python) {
       result.codes.push({ language: 'python', code });
       codeMap.python = true;
-    } else if ((lang === 'cpp' || lang === 'c++') && !codeMap.cpp) {
+    } else if ((lang === 'cpp' || lang === 'c++' || lang === 'c') && !codeMap.cpp) {
       result.codes.push({ language: 'cpp', code });
       codeMap.cpp = true;
     } else if (lang === 'java' && !codeMap.java) {
@@ -564,18 +642,40 @@ function parseSolutionFromText(text, timeComplexity, spaceComplexity) {
     }
   }
   
-  // Extract key points
-  const keyPointsMatch = text.match(/\*\*Key Points\*\*\s*[\:\-]?\s*\n([\s\S]*?)(?=\n\s*\*\*|$)/i);
-  if (keyPointsMatch) {
-    const points = keyPointsMatch[1].split('\n').filter(line => line.trim().match(/^[-\*•]/));
-    result.keyPoints = points.map(p => p.trim().replace(/^[-\*•]\s*/, '')).slice(0, 3);
+  console.log('Extracted', result.codes.length, 'code blocks');
+  
+  // Extract key points - try multiple patterns
+  let keyPointsMatch = text.match(/###?\s*\d+\.\s*\*\*?Key Points\*\*?\s*[\:\-]?\s*\n([\s\S]*?)(?=\n\s*###?\s*\d+\.|$)/i);
+  if (!keyPointsMatch) {
+    keyPointsMatch = text.match(/\*\*Key Points\*\*\s*[\:\-]?\s*\n([\s\S]*?)(?=\n\s*\*\*|$)/i);
+  }
+  if (!keyPointsMatch) {
+    keyPointsMatch = text.match(/\d+\.\s*Key Points\s*[\:\-]?\s*\n([\s\S]*?)(?=\n\s*\d+\.|$)/i);
   }
   
-  // Extract edge cases
-  const edgeCasesMatch = text.match(/\*\*Edge Cases\*\*\s*[\:\-]?\s*\n([\s\S]*?)(?=\n\s*\*\*|$)/i);
+  if (keyPointsMatch) {
+    const points = keyPointsMatch[1].split('\n').filter(line => line.trim().match(/^[-\*•\d]/));
+    result.keyPoints = points
+      .map(p => formatText(p.trim().replace(/^[-\*•\d]+[\.\)]\s*/, '')))
+      .filter(p => p.length > 0)
+      .slice(0, 3);
+  }
+  
+  // Extract edge cases - try multiple patterns
+  let edgeCasesMatch = text.match(/###?\s*\d+\.\s*\*\*?Edge Cases\*\*?\s*[\:\-]?\s*\n([\s\S]*?)(?=\n\s*###?\s*\d+\.|$)/i);
+  if (!edgeCasesMatch) {
+    edgeCasesMatch = text.match(/\*\*Edge Cases\*\*\s*[\:\-]?\s*\n([\s\S]*?)(?=\n\s*\*\*|$)/i);
+  }
+  if (!edgeCasesMatch) {
+    edgeCasesMatch = text.match(/\d+\.\s*Edge Cases\s*[\:\-]?\s*\n([\s\S]*?)(?=\n\s*\d+\.|$)/i);
+  }
+  
   if (edgeCasesMatch) {
-    const cases = edgeCasesMatch[1].split('\n').filter(line => line.trim().match(/^[-\*•]/));
-    result.edgeCases = cases.map(c => c.trim().replace(/^[-\*•]\s*/, '')).slice(0, 3);
+    const cases = edgeCasesMatch[1].split('\n').filter(line => line.trim().match(/^[-\*•\d]/));
+    result.edgeCases = cases
+      .map(c => formatText(c.trim().replace(/^[-\*•\d]+[\.\)]\s*/, '')))
+      .filter(c => c.length > 0)
+      .slice(0, 3);
   }
   
   // Ensure we have at least something in key points and edge cases
@@ -602,6 +702,14 @@ function parseSolutionFromText(text, timeComplexity, spaceComplexity) {
   while (result.edgeCases.length < 3) {
     result.edgeCases.push('Test with boundary values');
   }
+  
+  console.log('Final parsed solution:', {
+    hasExplanation: !!result.algorithmExplanation,
+    explanationLength: result.algorithmExplanation.length,
+    codeCount: result.codes.length,
+    keyPointsCount: result.keyPoints.length,
+    edgeCasesCount: result.edgeCases.length
+  });
   
   return result;
 }

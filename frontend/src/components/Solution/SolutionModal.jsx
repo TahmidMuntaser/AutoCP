@@ -24,6 +24,23 @@ const SolutionModal = ({ isOpen, onClose, solution, loading }) => {
     return codeObj?.code || '';
   };
 
+  // Helper function to format text with inline code and bold markers
+  const formatInlineText = (text, colorClass = 'text-blue-300', bgClass = 'bg-blue-900/30') => {
+    if (!text) return null;
+    
+    return text.split(/(\*\*[^*]+\*\*|`[^`]+`)/).map((part, i) => {
+      // Handle **bold** text
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return <strong key={i} className="text-white font-bold">{part.slice(2, -2)}</strong>;
+      }
+      // Handle `code` text
+      if (part.startsWith('`') && part.endsWith('`')) {
+        return <code key={i} className={`${colorClass} font-mono ${bgClass} px-1 rounded`}>{part.slice(1, -1)}</code>;
+      }
+      return part;
+    });
+  };
+
   const languageColors = {
     python: { bg: 'bg-blue-500/20', border: 'border-blue-400/50', text: 'text-blue-300', hover: 'hover:bg-blue-500/30' },
     cpp: { bg: 'bg-purple-500/20', border: 'border-purple-400/50', text: 'text-purple-300', hover: 'hover:bg-purple-500/30' },
@@ -76,15 +93,7 @@ const SolutionModal = ({ isOpen, onClose, solution, loading }) => {
                     if (line.trim().match(/^\d+\./)) {
                       return (
                         <p key={idx} className="font-semibold text-cyan-200 mt-4 mb-2">
-                          {line.split(/(\*\*[^*]+\*\*|`[^`]+`)/).map((part, i) => {
-                            if (part.startsWith('**') && part.endsWith('**')) {
-                              return <strong key={i} className="text-white">{part.slice(2, -2)}</strong>;
-                            }
-                            if (part.startsWith('`') && part.endsWith('`')) {
-                              return <code key={i} className="text-blue-300 font-mono bg-blue-900/30 px-1 rounded">{part.slice(1, -1)}</code>;
-                            }
-                            return part;
-                          })}
+                          {formatInlineText(line, 'text-blue-300', 'bg-blue-900/30')}
                         </p>
                       );
                     }
@@ -96,15 +105,7 @@ const SolutionModal = ({ isOpen, onClose, solution, loading }) => {
                         <div key={idx} className="flex gap-2 my-1 ml-4">
                           <span className="text-cyan-400 mt-1">•</span>
                           <span className="flex-1">
-                            {content.split(/(\*\*[^*]+\*\*|`[^`]+`)/).map((part, i) => {
-                              if (part.startsWith('**') && part.endsWith('**')) {
-                                return <strong key={i} className="text-white font-bold">{part.slice(2, -2)}</strong>;
-                              }
-                              if (part.startsWith('`') && part.endsWith('`')) {
-                                return <code key={i} className="text-blue-300 font-mono bg-blue-900/30 px-1 rounded">{part.slice(1, -1)}</code>;
-                              }
-                              return part;
-                            })}
+                            {formatInlineText(content, 'text-blue-300', 'bg-blue-900/30')}
                           </span>
                         </div>
                       );
@@ -122,15 +123,7 @@ const SolutionModal = ({ isOpen, onClose, solution, loading }) => {
                     // Regular paragraph with inline formatting
                     return (
                       <p key={idx} className="mb-2">
-                        {line.split(/(\*\*[^*]+\*\*|`[^`]+`)/).map((part, i) => {
-                          if (part.startsWith('**') && part.endsWith('**')) {
-                            return <strong key={i} className="text-white font-bold">{part.slice(2, -2)}</strong>;
-                          }
-                          if (part.startsWith('`') && part.endsWith('`')) {
-                            return <code key={i} className="text-blue-300 font-mono bg-blue-900/30 px-1 rounded">{part.slice(1, -1)}</code>;
-                          }
-                          return part;
-                        })}
+                        {formatInlineText(line, 'text-blue-300', 'bg-blue-900/30')}
                       </p>
                     );
                   })}
@@ -161,15 +154,7 @@ const SolutionModal = ({ isOpen, onClose, solution, loading }) => {
                       <li key={idx} className="flex items-start gap-3">
                         <span className="text-pink-400 mt-1 font-bold">•</span>
                         <span className="text-gray-300 flex-1">
-                          {point.split(/(\*\*[^*]+\*\*|`[^`]+`)/).map((part, i) => {
-                            if (part.startsWith('**') && part.endsWith('**')) {
-                              return <strong key={i} className="text-white font-bold">{part.slice(2, -2)}</strong>;
-                            }
-                            if (part.startsWith('`') && part.endsWith('`')) {
-                              return <code key={i} className="text-pink-300 font-mono bg-pink-900/30 px-1 rounded">{part.slice(1, -1)}</code>;
-                            }
-                            return part;
-                          })}
+                          {formatInlineText(point, 'text-pink-300', 'bg-pink-900/30')}
                         </span>
                       </li>
                     ))}
@@ -272,15 +257,7 @@ const SolutionModal = ({ isOpen, onClose, solution, loading }) => {
                       <li key={idx} className="flex items-start gap-3">
                         <span className="text-orange-400 mt-1 font-bold">•</span>
                         <span className="text-gray-300 flex-1">
-                          {edge.split(/(\*\*[^*]+\*\*|`[^`]+`)/).map((part, i) => {
-                            if (part.startsWith('**') && part.endsWith('**')) {
-                              return <strong key={i} className="text-white font-bold">{part.slice(2, -2)}</strong>;
-                            }
-                            if (part.startsWith('`') && part.endsWith('`')) {
-                              return <code key={i} className="text-orange-300 font-mono bg-orange-900/30 px-1 rounded">{part.slice(1, -1)}</code>;
-                            }
-                            return part;
-                          })}
+                          {formatInlineText(edge, 'text-orange-300', 'bg-orange-900/30')}
                         </span>
                       </li>
                     ))}
