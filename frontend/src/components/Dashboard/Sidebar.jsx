@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, History, Heart, User, LogOut, X, ChevronLeft, ChevronRight, Home } from 'lucide-react';
+import { LayoutDashboard, History, Heart, User, LogOut, X, ChevronLeft, Laptop2Icon , Home } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { showToast } from '../../components/Toast/CustomToast';
@@ -13,6 +13,11 @@ const Sidebar = ({ activeSection, setActiveSection, isOpen, toggleSidebar }) => 
       id: 'dashboard',
       label: 'Dashboard',
       icon: LayoutDashboard,
+    },
+    {
+      id: 'vjudge',
+      label: 'Submit Problems',
+      icon: Laptop2Icon,
     },
     {
       id: 'history',
