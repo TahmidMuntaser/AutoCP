@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { getProblemHistory } from '../../services/generateProblemApi';
 import { submitSolution, getSubmissionStatus, getProblemSubmissions } from '../../services/judgeApi';
 import { getTestcases } from '../../services/generateTestcaseApi';
@@ -7,7 +7,7 @@ import {
   FileText, ListChecks, History, Play, RotateCcw, Copy, Check,
   ChevronRight, ChevronLeft, Terminal, Eye, EyeOff
 } from 'lucide-react';
-import CustomToast from '../Toast/CustomToast';
+import { showToast } from '../Toast/CustomToast';
 
 const JudgeProblems = () => {
   const [problems, setProblems] = useState([]);
@@ -26,6 +26,21 @@ const JudgeProblems = () => {
   const [showAllProblems, setShowAllProblems] = useState(false); // Hide by default on mobile
   const [isMobile, setIsMobile] = useState(false);
   const [submissionError, setSubmissionError] = useState(null); // Add error state
+  const [judgingProgress, setJudgingProgress] = useState({
+    currentTest: 0,
+    totalTests: 0,
+    status: 'idle', // 'idle', 'compiling', 'running', 'completed'
+    testResults: [],
+    logs: [] // Real-time logs from backend
+  });
+  const logsEndRef = useRef(null);
+
+  // Auto-scroll logs to bottom
+  useEffect(() => {
+    if (logsEndRef.current && judgingProgress.logs.length > 0) {
+      logsEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [judgingProgress.logs]);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -122,7 +137,7 @@ public class Solution {
       }
     } catch (error) {
       console.error('Error fetching problems:', error);
-      CustomToast.error(error.message || 'Failed to fetch problems');
+      showToast.error(error.message || 'Failed to fetch problems');
       setProblems([]);
     } finally {
       setLoadingProblems(false);
@@ -153,19 +168,19 @@ public class Solution {
 
   const handleSubmit = async () => {
     if (!selectedProblem) {
-      CustomToast.error('Please select a problem first');
+      showToast.error('Please select a problem first');
       setSubmissionError('Please select a problem first');
       return;
     }
 
     if (!code.trim()) {
-      CustomToast.error('Please write some code before submitting');
+      showToast.error('Please write some code before submitting');
       setSubmissionError('Please write some code before submitting');
       return;
     }
 
     if (testcases.length === 0) {
-      CustomToast.error('No testcases found. Generate testcases from the Problem Generator first!');
+      showToast.error('No testcases found. Generate testcases from the Problem Generator first!');
       setSubmissionError('No testcases found. Generate testcases from the Problem Generator first!');
       return;
     }
@@ -174,6 +189,14 @@ public class Solution {
       setSubmitting(true);
       setSubmissionResult(null);
       setSubmissionError(null); // Clear previous errors
+      
+      // Initialize judging progress
+      setJudgingProgress({
+        currentTest: 0,
+        totalTests: testcases.length,
+        status: 'compiling',
+        testResults: []
+      });
       
       console.log('Submitting solution for problem:', selectedProblem._id);
       console.log('Language:', selectedLanguage);
@@ -185,7 +208,13 @@ public class Solution {
       console.log('Submit response:', response);
       
       if (response.success) {
-        CustomToast.success('Submission received! Judging in progress...');
+        showToast.success('Submission received! Judging in progress...');
+        
+        // Update to running state
+        setJudgingProgress(prev => ({
+          ...prev,
+          status: 'running'
+        }));
         
         // Start polling for results
         setPolling(true);
@@ -196,10 +225,11 @@ public class Solution {
     } catch (error) {
       console.error('Submit error:', error);
       const errorMessage = error.message || 'Failed to submit solution. Please try again.';
-      CustomToast.error(errorMessage);
+      showToast.error(errorMessage);
       setSubmissionError(errorMessage);
       setSubmitting(false);
       setPolling(false);
+      setJudgingProgress({ currentTest: 0, totalTests: 0, status: 'idle', testResults: [], logs: [] });
     }
   };
 
@@ -221,53 +251,93 @@ public class Solution {
         if (response.success && response.data) {
           console.log('Current status:', response.data.status);
           
-          if (response.data.status !== 'Pending') {
+          // Update progress based on status and test results
+          if (response.data.status === 'Compiling') {
+            setJudgingProgress(prev => ({
+              ...prev,
+              status: 'compiling',
+              currentTest: 0,
+              totalTests: response.data.totalTests,
+              logs: response.data.logs || []
+            }));
+          } else if (response.data.status === 'Running') {
+            const completedTests = response.data.testResults ? response.data.testResults.length : 0;
+            setJudgingProgress(prev => ({
+              ...prev,
+              currentTest: completedTests,
+              totalTests: response.data.totalTests,
+              status: 'running',
+              testResults: response.data.testResults || [],
+              logs: response.data.logs || []
+            }));
+          } else if (response.data.testResults && response.data.testResults.length > 0) {
+            const completedTests = response.data.testResults.length;
+            setJudgingProgress(prev => ({
+              ...prev,
+              currentTest: completedTests,
+              totalTests: response.data.totalTests,
+              status: response.data.status === 'Pending' ? 'running' : 'completed',
+              testResults: response.data.testResults,
+              logs: response.data.logs || []
+            }));
+          }
+          
+          // Check if judging is complete (status is not Pending, Compiling, or Running)
+          if (!['Pending', 'Compiling', 'Running'].includes(response.data.status)) {
             console.log('Judging complete! Setting result...');
             setSubmissionResult(response.data);
             setSubmitting(false);
             setPolling(false);
             
+            // Mark as completed
+            setJudgingProgress(prev => ({
+              ...prev,
+              status: 'completed'
+            }));
+            
             // Don't switch tabs automatically - keep showing results in main view
             fetchProblemSubmissions();
             
             if (response.data.status === 'Accepted') {
-              CustomToast.success('All test cases passed! 🎉');
+              showToast.success('All test cases passed! 🎉');
             } else if (response.data.status === 'Compilation Error') {
-              CustomToast.error('Compilation Error! Check the results below.');
+              showToast.error('Compilation Error! Check the results below.');
             } else if (response.data.status === 'Wrong Answer') {
-              CustomToast.error(`Wrong Answer - ${response.data.passedTests}/${response.data.totalTests} passed`);
+              showToast.error(`Wrong Answer - ${response.data.passedTests}/${response.data.totalTests} passed`);
             } else if (response.data.status === 'Runtime Error') {
-              CustomToast.error('Runtime Error! Check the results below.');
+              showToast.error('Runtime Error! Check the results below.');
             } else if (response.data.status === 'Time Limit Exceeded') {
-              CustomToast.error('Time Limit Exceeded!');
+              showToast.error('Time Limit Exceeded!');
             } else {
-              CustomToast.error(`Verdict: ${response.data.status}`);
+              showToast.error(`Verdict: ${response.data.status}`);
             }
             
             return; // Stop polling
           } else {
-            console.log('Still pending, will poll again...');
+            console.log('Still processing, will poll again...');
           }
         } else {
           console.error('Invalid response:', response);
         }
         
         if (attempts < maxAttempts) {
-          setTimeout(poll, 1000); // Poll every second
+          setTimeout(poll, 500); // Poll every 0.5 seconds for faster updates
         } else {
           console.error('Polling timeout reached');
           setSubmitting(false);
           setPolling(false);
+          setJudgingProgress({ currentTest: 0, totalTests: 0, status: 'idle', testResults: [], logs: [] });
           setSubmissionError('Judging timeout. Please check submission history.');
-          CustomToast.error('Judging timeout. Please check submission status later.');
+          showToast.error('Judging timeout. Please check submission status later.');
         }
       } catch (error) {
         console.error('Polling error:', error);
         console.error('Error details:', error.response?.data);
         setSubmitting(false);
         setPolling(false);
+        setJudgingProgress({ currentTest: 0, totalTests: 0, status: 'idle', testResults: [], logs: [] });
         setSubmissionError(error.message || 'Error fetching submission status');
-        CustomToast.error('Error checking submission status');
+        showToast.error('Error checking submission status');
       }
     };
 
@@ -278,12 +348,12 @@ public class Solution {
     navigator.clipboard.writeText(code);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-    CustomToast.success('Code copied to clipboard!');
+    showToast.success('Code copied to clipboard!');
   };
 
   const handleResetCode = () => {
     setCode(codeTemplates[selectedLanguage]);
-    CustomToast.success('Code reset to template');
+    showToast.success('Code reset to template');
   };
 
   const getStatusColor = (status) => {
@@ -763,34 +833,145 @@ public class Solution {
                 </div>
               </div>
 
-              {/* Judging Status Panel */}
+              {/* Judging Status Panel with Real-time Progress */}
               {submitting && !submissionResult && (
-                <div className="bg-blue-900/20 border-t-4 border-blue-500 p-4 md:p-6">
-                  <div className="flex items-center gap-3 mb-3">
+                <div className="bg-gray-900/95 border-t-4 border-blue-500 p-4 md:p-6 max-h-96 overflow-y-auto">
+                  <div className="flex items-center gap-3 mb-4">
                     <Loader className="w-6 h-6 md:w-8 md:h-8 animate-spin text-blue-400" />
                     <div>
-                      <h3 className="text-lg md:text-xl font-bold text-white">Judging Your Solution...</h3>
-                      <p className="text-sm text-gray-400">Running {testcases.length} test cases</p>
+                      <h3 className="text-lg md:text-xl font-bold text-white">
+                        {judgingProgress.status === 'compiling' && 'Compiling Your Code...'}
+                        {judgingProgress.status === 'running' && 'Running Test Cases...'}
+                        {judgingProgress.status === 'completed' && 'Judging Complete!'}
+                      </h3>
+                      <p className="text-sm text-gray-400">
+                        {judgingProgress.status === 'compiling' && 'Checking for syntax errors'}
+                        {judgingProgress.status === 'running' && `Progress: ${judgingProgress.currentTest}/${judgingProgress.totalTests} test cases`}
+                      </p>
                     </div>
                   </div>
+
+                  {/* Terminal-like Logs Display */}
+                  {judgingProgress.logs && judgingProgress.logs.length > 0 && (
+                    <div className="mb-4 bg-black/60 rounded-lg border border-gray-700 p-4 font-mono text-sm max-h-64 overflow-y-auto">
+                      <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-700">
+                        <Terminal className="w-4 h-4 text-green-400" />
+                        <span className="text-green-400 font-semibold">Judge Terminal</span>
+                      </div>
+                      {judgingProgress.logs.map((log, idx) => (
+                        <div 
+                          key={idx} 
+                          className={`py-1 ${
+                            log.type === 'success' ? 'text-green-400' :
+                            log.type === 'error' ? 'text-red-400' :
+                            log.type === 'warning' ? 'text-yellow-400' :
+                            'text-gray-300'
+                          }`}
+                          style={{
+                            animation: 'slideIn 0.2s ease-out'
+                          }}
+                        >
+                          {log.message}
+                        </div>
+                      ))}
+                      <div ref={logsEndRef} />
+                      <div className="flex items-center gap-1 text-green-400 mt-2 animate-pulse">
+                        <span>▊</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Progress Bar */}
+                  {judgingProgress.totalTests > 0 && (
+                    <div className="mb-4">
+                      <div className="flex justify-between text-sm text-gray-400 mb-2">
+                        <span>Test Cases Progress</span>
+                        <span>{judgingProgress.currentTest}/{judgingProgress.totalTests}</span>
+                      </div>
+                      <div className="w-full bg-gray-800 rounded-full h-3 overflow-hidden">
+                        <div 
+                          className="bg-blue-500 h-full transition-all duration-300 ease-out relative overflow-hidden"
+                          style={{ width: `${(judgingProgress.currentTest / judgingProgress.totalTests) * 100}%` }}
+                        >
+                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Live Test Results */}
+                  {judgingProgress.testResults.length > 0 && (
+                    <div className="space-y-2 mb-4">
+                      <h4 className="text-sm font-semibold text-gray-300 mb-2">Live Results:</h4>
+                      {judgingProgress.testResults.map((test, idx) => (
+                        <div 
+                          key={idx}
+                          className={`flex items-center justify-between p-3 rounded-lg border transition-all duration-300 ${
+                            test.status === 'Passed' 
+                              ? 'bg-green-900/20 border-green-500/40' 
+                              : test.status === 'Failed'
+                              ? 'bg-red-900/20 border-red-500/40'
+                              : test.status === 'TLE'
+                              ? 'bg-yellow-900/20 border-yellow-500/40'
+                              : 'bg-orange-900/20 border-orange-500/40'
+                          }`}
+                          style={{
+                            animation: 'slideIn 0.3s ease-out'
+                          }}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-gray-300">Test #{test.testcaseNumber}</span>
+                            {test.executionTime && (
+                              <span className="text-xs text-gray-500">({test.executionTime}ms)</span>
+                            )}
+                          </div>
+                          <div className={`flex items-center gap-1 text-sm font-semibold ${
+                            test.status === 'Passed' ? 'text-green-400' :
+                            test.status === 'Failed' ? 'text-red-400' :
+                            test.status === 'TLE' ? 'text-yellow-400' :
+                            'text-orange-400'
+                          }`}>
+                            {test.status === 'Passed' && <CheckCircle className="w-4 h-4" />}
+                            {test.status === 'Failed' && <XCircle className="w-4 h-4" />}
+                            {test.status === 'TLE' && <Clock className="w-4 h-4" />}
+                            {test.status === 'Error' && <AlertCircle className="w-4 h-4" />}
+                            {test.status}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Status Message */}
                   <div className="bg-gray-800/50 rounded-lg p-3 md:p-4 space-y-2">
-                    <div className="flex items-center gap-2 text-sm text-gray-300">
-                      <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
-                      Compiling and executing your code...
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      This may take up to 60 seconds. Backend logs will show execution progress.
-                    </div>
+                    {judgingProgress.status === 'compiling' && (
+                      <div className="flex items-center gap-2 text-sm text-gray-300">
+                        <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+                        Compiling code with {selectedLanguage === 'python' ? 'Python 3' : selectedLanguage === 'cpp' ? 'G++ 17' : 'Java 11'}...
+                      </div>
+                    )}
+                    {judgingProgress.status === 'running' && (
+                      <>
+                        <div className="flex items-center gap-2 text-sm text-gray-300">
+                          <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                          Executing test cases and comparing outputs...
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          Each test case has a 5-second time limit
+                        </div>
+                      </>
+                    )}
                     <div className="pt-2">
                       <button
                         onClick={() => {
                           setSubmitting(false);
                           setPolling(false);
-                          CustomToast.info('Judging cancelled. Check submissions tab for results.');
+                          setJudgingProgress({ currentTest: 0, totalTests: 0, status: 'idle', testResults: [], logs: [] });
+                          showToast.info('Stopped polling. Check submissions tab for final results.');
                         }}
                         className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm text-white transition-colors"
                       >
-                        Cancel & Check Submissions
+                        Stop Polling & Check Submissions
                       </button>
                     </div>
                   </div>
@@ -834,7 +1015,7 @@ public class Solution {
                   submissionResult.status === 'Accepted' 
                     ? 'bg-green-900/20 border-green-500' 
                     : submissionResult.status === 'Compilation Error'
-                    ? 'bg-yellow-900/20 border-yellow-500'
+                    ? 'bg-pink-900/20 border-pink-500'
                     : 'bg-red-900/20 border-red-500'
                 }`}>
                   <div className="p-3 md:p-4">
@@ -843,6 +1024,8 @@ public class Solution {
                       <div className="flex items-center gap-3">
                         {submissionResult.status === 'Accepted' ? (
                           <CheckCircle className="w-8 h-8 md:w-10 md:h-10 text-green-400" />
+                        ) : submissionResult.status === 'Compilation Error' ? (
+                          <AlertCircle className="w-8 h-8 md:w-10 md:h-10 text-pink-400" />
                         ) : (
                           <XCircle className="w-8 h-8 md:w-10 md:h-10 text-red-400" />
                         )}
@@ -853,6 +1036,8 @@ public class Solution {
                           <p className="text-sm md:text-base text-gray-400">
                             {submissionResult.status === 'Accepted' 
                               ? 'All test cases passed successfully!' 
+                              : submissionResult.status === 'Compilation Error'
+                              ? 'Your code failed to compile. Check the error below.'
                               : 'Some tests failed. Review the details below.'}
                           </p>
                         </div>
@@ -863,27 +1048,109 @@ public class Solution {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-2 md:gap-3 mb-3 md:mb-4">
-                      <div className="bg-gray-800/50 border border-gray-700 p-2 md:p-3 rounded-lg text-center">
-                        <p className="text-[10px] md:text-xs text-gray-500 uppercase mb-1">Test Cases</p>
-                        <p className="text-base md:text-lg font-bold text-white">
-                          {submissionResult.passedTests}/{submissionResult.totalTests}
-                        </p>
+                    {/* Compilation Error Display */}
+                    {submissionResult.status === 'Compilation Error' && submissionResult.testResults && submissionResult.testResults[0] && (
+                      <div className="mb-4">
+                        <div className="bg-pink-900/30 border border-pink-500/40 rounded-lg p-4">
+                          <h4 className="text-sm font-semibold text-pink-400 mb-2 flex items-center gap-2">
+                            <AlertCircle className="w-4 h-4" />
+                            Compilation Error Details
+                          </h4>
+                          <pre className="text-xs md:text-sm text-pink-200 font-mono overflow-x-auto whitespace-pre-wrap bg-black/30 p-3 rounded mb-3">
+                            {submissionResult.testResults[0].error}
+                          </pre>
+                          <div className="bg-pink-900/20 rounded p-3 text-xs text-pink-200">
+                            <p className="font-semibold mb-2">💡 Common Compilation Issues:</p>
+                            <ul className="space-y-1 pl-4">
+                              <li>• Check for syntax errors (missing semicolons, brackets, parentheses)</li>
+                              <li>• Verify variable and function names are spelled correctly</li>
+                              <li>• Make sure all variables are declared before use</li>
+                              <li>• For Java: Ensure class name is "Solution"</li>
+                              <li>• For C++: Check all #include statements are correct</li>
+                            </ul>
+                          </div>
+                        </div>
                       </div>
-                      <div className="bg-gray-800/50 border border-gray-700 p-3 rounded-lg text-center">
-                        <p className="text-xs text-gray-500 uppercase mb-1">Execution Time</p>
-                        <p className="text-lg font-bold text-white">{submissionResult.totalExecutionTime}ms</p>
-                      </div>
-                      <div className="bg-gray-800/50 border border-gray-700 p-3 rounded-lg text-center">
-                        <p className="text-xs text-gray-500 uppercase mb-1">Language</p>
-                        <p className="text-lg font-bold text-white uppercase">{submissionResult.language}</p>
-                      </div>
-                    </div>
+                    )}
 
-                    {submissionResult.testResults && submissionResult.testResults.length > 0 && (
+                    {/* Runtime Error Tips */}
+                    {submissionResult.status === 'Runtime Error' && (
+                      <div className="mb-4 bg-orange-900/20 border border-orange-500/40 rounded-lg p-4">
+                        <h4 className="text-sm font-semibold text-orange-400 mb-2 flex items-center gap-2">
+                          <AlertCircle className="w-4 h-4" />
+                          💡 Common Runtime Error Causes:
+                        </h4>
+                        <ul className="text-xs md:text-sm text-orange-200 space-y-1 pl-4">
+                          <li>• Division by zero</li>
+                          <li>• Array/list index out of bounds</li>
+                          <li>• Null/None pointer access</li>
+                          <li>• Stack overflow (infinite recursion or too deep recursion)</li>
+                          <li>• Input/output format mismatch (reading wrong data type)</li>
+                          <li>• Memory limit exceeded</li>
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Stats Grid - Only show if not compilation error */}
+                    {submissionResult.status !== 'Compilation Error' && (
+                      <>
+                        <div className="grid grid-cols-3 gap-2 md:gap-3 mb-3 md:mb-4">
+                          <div className="bg-gray-800/50 border border-gray-700 p-2 md:p-3 rounded-lg text-center">
+                            <p className="text-[10px] md:text-xs text-gray-500 uppercase mb-1">Test Cases</p>
+                            <p className="text-base md:text-lg font-bold text-white">
+                              {submissionResult.passedTests}/{submissionResult.totalTests}
+                            </p>
+                          </div>
+                          <div className="bg-gray-800/50 border border-gray-700 p-2 md:p-3 rounded-lg text-center">
+                            <p className="text-[10px] md:text-xs text-gray-500 uppercase mb-1">Execution Time</p>
+                            <p className="text-base md:text-lg font-bold text-white">{submissionResult.totalExecutionTime}ms</p>
+                          </div>
+                          <div className="bg-gray-800/50 border border-gray-700 p-2 md:p-3 rounded-lg text-center">
+                            <p className="text-[10px] md:text-xs text-gray-500 uppercase mb-1">Language</p>
+                            <p className="text-base md:text-lg font-bold text-white uppercase">{submissionResult.language}</p>
+                          </div>
+                        </div>
+
+                        {/* Quick Error Summary for Wrong Answer */}
+                        {submissionResult.status === 'Wrong Answer' && submissionResult.testResults && (
+                          <div className="mb-4 bg-yellow-900/20 border border-yellow-500/40 rounded-lg p-4">
+                            <h4 className="text-sm font-semibold text-yellow-400 mb-3 flex items-center gap-2">
+                              <AlertCircle className="w-4 h-4" />
+                              Why Your Solution Failed:
+                            </h4>
+                            <div className="text-xs md:text-sm text-yellow-100 space-y-2">
+                              {submissionResult.testResults.filter(t => t.status === 'Failed').slice(0, 3).map((test, idx) => (
+                                <div key={idx} className="bg-yellow-900/30 rounded p-2 border-l-4 border-yellow-400">
+                                  <div className="font-semibold text-yellow-300 mb-1">Test #{test.testcaseNumber}:</div>
+                                  <div className="pl-2 space-y-1">
+                                    {test.error ? (
+                                      <pre className="whitespace-pre-wrap font-mono text-xs">{test.error}</pre>
+                                    ) : (
+                                      <>
+                                        <div><span className="text-yellow-400">Expected:</span> {test.expectedOutput?.substring(0, 100)}{test.expectedOutput?.length > 100 ? '...' : ''}</div>
+                                        <div><span className="text-yellow-400">Your output:</span> {test.actualOutput?.substring(0, 100)}{test.actualOutput?.length > 100 ? '...' : ''}</div>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                              {submissionResult.testResults.filter(t => t.status === 'Failed').length > 3 && (
+                                <p className="text-center text-yellow-400 text-xs">
+                                  + {submissionResult.testResults.filter(t => t.status === 'Failed').length - 3} more failed test(s)
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {/* Test Results - Only show if not compilation error or if has actual test results */}
+                    {submissionResult.testResults && submissionResult.testResults.length > 0 && submissionResult.status !== 'Compilation Error' && (
                       <div className="space-y-2">
+                        <h4 className="text-sm font-semibold text-gray-300 mb-2">Test Case Results:</h4>
                         {submissionResult.testResults.map((test, idx) => (
-                          <details key={idx} className="bg-gray-800/50 border border-gray-700 rounded-lg">
+                          <details key={idx} className="bg-gray-800/50 border border-gray-700 rounded-lg group">
                             <summary className="cursor-pointer p-3 flex items-center justify-between hover:bg-gray-800 transition-colors rounded-lg">
                               <span className="font-medium text-white">Test #{test.testcaseNumber}</span>
                               <div className="flex items-center gap-3">
@@ -891,14 +1158,31 @@ public class Solution {
                                   <span className="text-xs text-gray-400">{test.executionTime}ms</span>
                                 )}
                                 <span className={`flex items-center gap-1 text-sm font-semibold ${
-                                  test.status === 'Passed' ? 'text-green-400' : 'text-red-400'
+                                  test.status === 'Passed' ? 'text-green-400' : 
+                                  test.status === 'TLE' ? 'text-yellow-400' :
+                                  'text-red-400'
                                 }`}>
-                                  {test.status === 'Passed' ? <CheckCircle className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+                                  {test.status === 'Passed' ? <CheckCircle className="w-4 h-4" /> : 
+                                   test.status === 'TLE' ? <Clock className="w-4 h-4" /> :
+                                   <XCircle className="w-4 h-4" />}
                                   {test.status}
                                 </span>
                               </div>
                             </summary>
                             <div className="px-3 pb-3 space-y-2 text-sm">
+                              {/* Show error reason first if test failed */}
+                              {test.error && test.status !== 'Passed' && (
+                                <div className="mb-3">
+                                  <div className="bg-red-900/30 border border-red-500/40 rounded-lg p-3">
+                                    <p className="text-xs text-red-400 uppercase mb-1 flex items-center gap-1 font-semibold">
+                                      <AlertCircle className="w-3 h-3" />
+                                      Reason for Failure:
+                                    </p>
+                                    <pre className="text-xs md:text-sm text-red-300 whitespace-pre-wrap font-mono">{test.error}</pre>
+                                  </div>
+                                </div>
+                              )}
+                              
                               {test.input && (
                                 <div>
                                   <p className="text-xs text-gray-500 uppercase mb-1">Input:</p>
@@ -907,7 +1191,7 @@ public class Solution {
                               )}
                               {test.expectedOutput && (
                                 <div>
-                                  <p className="text-xs text-gray-500 uppercase mb-1">Expected:</p>
+                                  <p className="text-xs text-gray-500 uppercase mb-1">Expected Output:</p>
                                   <pre className="bg-black/40 p-2 rounded text-xs text-blue-400 font-mono overflow-x-auto">{test.expectedOutput}</pre>
                                 </div>
                               )}
@@ -916,13 +1200,18 @@ public class Solution {
                                   <p className="text-xs text-gray-500 uppercase mb-1">Your Output:</p>
                                   <pre className={`p-2 rounded text-xs font-mono overflow-x-auto ${
                                     test.status === 'Passed' ? 'bg-green-900/20 text-green-400' : 'bg-red-900/20 text-red-400'
-                                  }`}>{test.actualOutput || '(empty)'}</pre>
+                                  }`}>{test.actualOutput || '(empty or no output)'}</pre>
                                 </div>
                               )}
-                              {test.error && (
+                              
+                              {/* Show stderr/runtime error separately */}
+                              {test.error && (test.status === 'Error' || test.status === 'TLE') && (
                                 <div>
-                                  <p className="text-xs text-red-400 uppercase mb-1">Error:</p>
-                                  <pre className="bg-red-900/20 p-2 rounded text-xs text-red-300 font-mono overflow-x-auto">{test.error}</pre>
+                                  <p className="text-xs text-red-400 uppercase mb-1 flex items-center gap-1">
+                                    <AlertCircle className="w-3 h-3" />
+                                    {test.status === 'TLE' ? 'Time Limit Exceeded:' : 'Runtime Error:'}
+                                  </p>
+                                  <pre className="bg-red-900/20 p-2 rounded text-xs text-red-300 font-mono overflow-x-auto whitespace-pre-wrap">{test.error}</pre>
                                 </div>
                               )}
                             </div>
@@ -937,6 +1226,7 @@ public class Solution {
                         onClick={() => {
                           setSubmissionResult(null);
                           setSubmissionError(null);
+                          setJudgingProgress({ currentTest: 0, totalTests: 0, status: 'idle', testResults: [], logs: [] });
                         }}
                         className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white font-medium transition-colors text-sm"
                       >
