@@ -8,6 +8,7 @@ import {
   ChevronRight, ChevronLeft, Terminal, Eye, EyeOff
 } from 'lucide-react';
 import { showToast } from '../Toast/CustomToast';
+import { SkeletonProblemListItem } from '../Loading/SkeletonLoader';
 
 const JudgeProblems = () => {
   const [problems, setProblems] = useState([]);
@@ -437,8 +438,10 @@ public class Solution {
               </h2>
               
               {loadingProblems ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader className="w-8 h-8 animate-spin text-blue-400" />
+                <div className="space-y-2">
+                  {[1, 2, 3, 4, 5, 6].map((i) => (
+                    <SkeletonProblemListItem key={i} />
+                  ))}
                 </div>
               ) : problems.length === 0 ? (
                 <div className="text-center py-12">

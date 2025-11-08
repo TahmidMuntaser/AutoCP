@@ -1,24 +1,13 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { Skeleton } from '../Loading/SkeletonLoader';
+import { LoadingScreen } from '../Loading/LoadingSpinner';
 
 const ProtectedRoute = ({ children, requiredRole }) => {
   const { user, loading, isAuthenticated } = useAuth();
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
-        <div className="w-full max-w-md p-8 bg-white rounded-xl shadow-lg">
-          <div className="animate-pulse space-y-4">
-            <Skeleton className="h-12 w-12 rounded-full mx-auto" />
-            <Skeleton className="h-6 w-3/4 mx-auto" />
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-2/3 mx-auto" />
-          </div>
-        </div>
-      </div>
-    );
+    return <LoadingScreen message="Verifying authentication..." />;
   }
 
   if (!isAuthenticated) {
