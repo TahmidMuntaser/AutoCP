@@ -31,8 +31,18 @@ const submissionSchema = new mongoose.Schema({
   status: {
     type: String,
     required: true,
-    enum: ['Accepted', 'Wrong Answer', 'Runtime Error', 'Time Limit Exceeded', 'Compilation Error', 'Pending'],
+    enum: ['Accepted', 'Wrong Answer', 'Runtime Error', 'Time Limit Exceeded', 'Compilation Error', 'Pending', 'Compiling', 'Running'],
     default: 'Pending'
+  },
+  
+  // Real-time logs (like terminal output)
+  logs: {
+    type: [{
+      timestamp: { type: Date, default: Date.now },
+      message: { type: String },
+      logType: { type: String }  // 'info', 'success', 'error', 'warning'
+    }],
+    default: []
   },
   
   // Test results
@@ -75,6 +85,11 @@ const submissionSchema = new mongoose.Schema({
 submissionSchema.index({ userId: 1, submittedAt: -1 });
 submissionSchema.index({ problemId: 1, userId: 1 });
 submissionSchema.index({ status: 1 });
+
+// Clear any cached model to prevent schema conflicts
+if (mongoose.models.Submission) {
+  delete mongoose.models.Submission;
+}
 
 const Submission = mongoose.model('Submission', submissionSchema);
 

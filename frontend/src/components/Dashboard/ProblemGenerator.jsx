@@ -20,6 +20,7 @@ import { generateSolution as generateSolutionApi, getSolution } from '../../serv
 import { generateTestcases as generateTestcasesApi, getTestcases } from '../../services/generateTestcaseApi';
 import SolutionModal from '../Solution/SolutionModal';
 import TestcaseModal from '../Testcase/TestcaseModal';
+import { SkeletonProblemGenerator } from '../Loading/SkeletonLoader';
 
 const ProblemGenerator = () => {
   const [formData, setFormData] = useState({

@@ -98,6 +98,22 @@ const submitSolution = async (req, res) => {
   }
 };
 
+// Helper function to add log to submission
+function addLog(submission, message, type = 'info') {
+  if (!submission.logs) {
+    submission.logs = [];
+  }
+  // Create a plain object that mongoose will convert to a subdocument
+  submission.logs.push({
+    timestamp: new Date(),
+    message: String(message),
+    logType: String(type)  // Changed from 'type' to 'logType' to avoid Mongoose keyword conflict
+  });
+  // Mark the logs array as modified so Mongoose knows to save it
+  submission.markModified('logs');
+  console.log(message); // Also log to console
+}
+
 // Run tests on submitted code
 async function runTests(submissionId, code, language, testcases) {
   let tempDir = null;
@@ -109,7 +125,9 @@ async function runTests(submissionId, code, language, testcases) {
       return;
     }
 
-    console.log(`Starting tests for submission ${submissionId}, language: ${language}, testcases: ${testcases.length}`);
+    addLog(submission, `🚀 Starting judging process for ${language} submission`, 'info');
+    addLog(submission, `📋 Total test cases: ${testcases.length}`, 'info');
+    await submission.save();
 
     const testResults = [];
     let passedTests = 0;
@@ -127,37 +145,46 @@ async function runTests(submissionId, code, language, testcases) {
       if (language === 'python') {
         fileName = 'solution.py';
         await fs.writeFile(path.join(tempDir, fileName), code);
-        runCmd = (inputFile) => `cd "${tempDir}" && python3 solution.py < "${inputFile}"`;
+        runCmd = (inputFile) => `python3 -u solution.py < "${inputFile}"`;
       } else if (language === 'cpp') {
         fileName = 'solution.cpp';
         await fs.writeFile(path.join(tempDir, fileName), code);
-        compileCmd = `cd "${tempDir}" && g++ -std=c++17 -O2 solution.cpp -o solution`;
-        runCmd = (inputFile) => `cd "${tempDir}" && ./solution < "${inputFile}"`;
+        compileCmd = `g++ -std=c++17 -O2 solution.cpp -o solution`;
+        runCmd = (inputFile) => `./solution < "${inputFile}"`;
       } else if (language === 'java') {
         fileName = 'Solution.java';
         // Ensure class name is Solution
         const modifiedCode = code.replace(/public\s+class\s+\w+/g, 'public class Solution');
         await fs.writeFile(path.join(tempDir, fileName), modifiedCode);
-        compileCmd = `cd "${tempDir}" && javac Solution.java`;
-        runCmd = (inputFile) => `cd "${tempDir}" && java Solution < "${inputFile}"`;
+        compileCmd = `javac Solution.java`;
+        runCmd = (inputFile) => `./solution < "${inputFile}"`;
       }
 
-      console.log(`Executing with language: ${language}, file: ${fileName}`);
+      addLog(submission, `📝 Language: ${language}, File: ${fileName}`, 'info');
+      await submission.save();
 
       // Compile if needed
       if (compileCmd) {
-        console.log('Compiling...');
+        addLog(submission, `🔨 Compiling ${language} code...`, 'info');
+        submission.status = 'Compiling';
+        await submission.save();
+        
         try {
-          const { stdout, stderr } = await execPromise(compileCmd, { timeout: 10000 });
-          console.log('Compilation successful');
-          if (stderr) console.log('Compile warnings:', stderr);
+          const { stdout, stderr } = await execPromise(compileCmd, { timeout: 10000, cwd: tempDir });
+          addLog(submission, `✅ Compilation successful!`, 'success');
+          if (stderr) {
+            addLog(submission, `⚠️  Compiler warnings: ${stderr}`, 'warning');
+          }
+          await submission.save();
         } catch (compileError) {
-          console.error('Compilation failed:', compileError.message);
+          const errorMsg = compileError.stderr || compileError.stdout || compileError.message;
+          addLog(submission, `❌ Compilation failed!`, 'error');
+          addLog(submission, errorMsg, 'error');
           submission.status = 'Compilation Error';
           submission.testResults = [{
             testcaseNumber: 0,
             status: 'Compilation Error',
-            error: compileError.stderr || compileError.stdout || compileError.message
+            error: errorMsg
           }];
           await submission.save();
           await cleanupTempDir(tempDir);
@@ -165,11 +192,23 @@ async function runTests(submissionId, code, language, testcases) {
         }
       }
 
+      // Update status to show tests are running
+      addLog(submission, `\n🚀 Running ${testcases.length} test cases...`, 'info');
+      submission.status = 'Running';
+      await submission.save();
+
       // Run each test case
-      console.log(`Running ${testcases.length} test cases...`);
       for (let i = 0; i < testcases.length; i++) {
+        addLog(submission, `\n📝 Test Case ${i + 1}/${testcases.length}:`, 'info');
+        await submission.save();
+        
         const testcase = testcases[i];
-        const inputFile = path.join(tempDir, `input_${i}.txt`);
+        
+        // Log the input being tested
+        addLog(submission, `   Input (${testcase.input.length} chars): "${testcase.input}"`, 'info');
+        
+        const inputFileName = `input_${i}.txt`;
+        const inputFile = path.join(tempDir, inputFileName);
         await fs.writeFile(inputFile, testcase.input);
 
         const testResult = {
@@ -180,9 +219,10 @@ async function runTests(submissionId, code, language, testcases) {
 
         try {
           const startTime = Date.now();
-          const { stdout, stderr } = await execPromise(runCmd(inputFile), {
+          const { stdout, stderr } = await execPromise(runCmd(inputFileName), {
             timeout: 5000,  // 5 second timeout per test
-            maxBuffer: 1024 * 1024  // 1MB buffer
+            maxBuffer: 1024 * 1024,  // 1MB buffer
+            cwd: tempDir
           });
           const executionTime = Date.now() - startTime;
 
@@ -190,20 +230,82 @@ async function runTests(submissionId, code, language, testcases) {
           testResult.executionTime = executionTime;
           totalExecutionTime += executionTime;
 
+          // Normalize outputs for comparison (trim lines and remove trailing whitespace)
+          const normalizeOutput = (str) => {
+            return str
+              .split('\n')
+              .map(line => line.trimEnd())  // Only trim end to preserve leading spaces
+              .filter(line => line.length > 0)  // Remove empty lines
+              .join('\n')
+              .trim();
+          };
+
+          const normalizedActual = normalizeOutput(testResult.actualOutput);
+          const normalizedExpected = normalizeOutput(testResult.expectedOutput);
+
+          // Log normalized outputs for debugging
+          addLog(submission, `   Raw Expected: "${testResult.expectedOutput}"`, 'info');
+          addLog(submission, `   Raw Actual:   "${testResult.actualOutput}"`, 'info');
+          addLog(submission, `   Normalized Expected: "${normalizedExpected}"`, 'info');
+          addLog(submission, `   Normalized Actual:   "${normalizedActual}"`, 'info');
+
           // Compare output
-          if (testResult.actualOutput === testResult.expectedOutput) {
+          if (normalizedActual === normalizedExpected) {
             testResult.status = 'Passed';
             passedTests++;
-            console.log(`Test ${i + 1}: Passed (${executionTime}ms)`);
+            addLog(submission, `✅ Test ${i + 1}: Passed (${executionTime}ms)`, 'success');
           } else {
             testResult.status = 'Failed';
-            overallStatus = 'Wrong Answer';
-            console.log(`Test ${i + 1}: Failed - Expected: "${testResult.expectedOutput}", Got: "${testResult.actualOutput}"`);
+            if (overallStatus === 'Accepted') {
+              overallStatus = 'Wrong Answer';
+            }
+            addLog(submission, `❌ Test ${i + 1}: Failed (output mismatch)`, 'error');
+            
+            // Add detailed difference explanation with character-by-character comparison
+            if (testResult.actualOutput.length === 0) {
+              testResult.error = 'No output produced. Your program might not be printing anything or crashed before producing output.';
+              addLog(submission, `   Error: No output produced`, 'error');
+            } else if (normalizedActual.length === 0 && normalizedExpected.length > 0) {
+              testResult.error = 'Output is empty after normalization. Check if your program prints only whitespace.';
+              addLog(submission, `   Error: Empty output after removing whitespace`, 'error');
+            } else if (normalizedActual.length !== normalizedExpected.length) {
+              testResult.error = `Output length mismatch. Expected ${normalizedExpected.length} characters but got ${normalizedActual.length} characters. Check for extra or missing characters.`;
+              addLog(submission, `   Error: Length mismatch (Expected: ${normalizedExpected.length}, Got: ${normalizedActual.length})`, 'error');
+              
+              // Show first few characters of each
+              const preview = 50;
+              if (normalizedExpected.length > 0) {
+                addLog(submission, `   Expected starts with: "${normalizedExpected.substring(0, preview)}${normalizedExpected.length > preview ? '...' : ''}"`, 'error');
+              }
+              if (normalizedActual.length > 0) {
+                addLog(submission, `   Your output starts with: "${normalizedActual.substring(0, preview)}${normalizedActual.length > preview ? '...' : ''}"`, 'error');
+              }
+            } else {
+              // Find first difference
+              let diffPos = -1;
+              for (let j = 0; j < normalizedExpected.length; j++) {
+                if (normalizedActual[j] !== normalizedExpected[j]) {
+                  diffPos = j;
+                  break;
+                }
+              }
+              if (diffPos >= 0) {
+                const contextStart = Math.max(0, diffPos - 10);
+                const contextEnd = Math.min(normalizedExpected.length, diffPos + 10);
+                testResult.error = `First difference at position ${diffPos}.\nExpected character: '${normalizedExpected[diffPos]}' (ASCII: ${normalizedExpected.charCodeAt(diffPos)})\nYour character: '${normalizedActual[diffPos]}' (ASCII: ${normalizedActual.charCodeAt(diffPos)})\nContext: ...${normalizedExpected.substring(contextStart, contextEnd)}...`;
+                addLog(submission, `   Error: First difference at position ${diffPos}`, 'error');
+                addLog(submission, `   Expected: '${normalizedExpected[diffPos]}' (ASCII ${normalizedExpected.charCodeAt(diffPos)})`, 'error');
+                addLog(submission, `   Got:      '${normalizedActual[diffPos]}' (ASCII ${normalizedActual.charCodeAt(diffPos)})`, 'error');
+              } else {
+                testResult.error = 'Output differs in whitespace or formatting (strings are same length but differ in content).';
+                addLog(submission, `   Error: Output differs but exact position not found`, 'error');
+              }
+            }
           }
 
           if (stderr) {
             testResult.error = stderr;
-            console.log(`Test ${i + 1}: stderr:`, stderr);
+            addLog(submission, `⚠️  Test ${i + 1} stderr: ${stderr}`, 'warning');
           }
 
         } catch (runError) {
@@ -212,27 +314,58 @@ async function runTests(submissionId, code, language, testcases) {
           if (runError.killed || runError.signal === 'SIGTERM') {
             testResult.status = 'TLE';
             testResult.error = 'Time Limit Exceeded';
-            overallStatus = 'Time Limit Exceeded';
-            console.log(`Test ${i + 1}: TLE`);
+            if (overallStatus === 'Accepted') {
+              overallStatus = 'Time Limit Exceeded';
+            }
+            addLog(submission, `⏱️  Test ${i + 1}: Time Limit Exceeded`, 'error');
           } else {
             testResult.status = 'Error';
-            testResult.error = runError.stderr || runError.stdout || runError.message;
-            overallStatus = 'Runtime Error';
-            console.error(`Test ${i + 1}: Runtime Error:`, runError.message);
+            const errorDetails = runError.stderr || runError.stdout || runError.message;
+            testResult.error = errorDetails;
+            if (overallStatus === 'Accepted') {
+              overallStatus = 'Runtime Error';
+            }
+            addLog(submission, `💥 Test ${i + 1}: Runtime Error`, 'error');
+            
+            // Log the actual error details
+            if (runError.stderr) {
+              addLog(submission, `   Error Output (stderr):`, 'error');
+              addLog(submission, runError.stderr, 'error');
+            }
+            if (runError.stdout) {
+              addLog(submission, `   Program Output (stdout):`, 'error');
+              addLog(submission, runError.stdout, 'error');
+            }
+            if (runError.message && !runError.stderr && !runError.stdout) {
+              addLog(submission, `   Error: ${runError.message}`, 'error');
+            }
+            
+            // Log the input that caused the error
+            addLog(submission, `   Input that caused error: "${testcase.input}"`, 'error');
           }
         }
 
         testResults.push(testResult);
+        
+        // 🔥 UPDATE SUBMISSION AFTER EACH TEST CASE (Real-time updates!)
+        submission.testResults = testResults;
+        submission.passedTests = passedTests;
+        submission.totalExecutionTime = totalExecutionTime;
+        submission.status = 'Running'; // Keep status as Running until all tests complete
+        await submission.save();
       }
 
-      // Update submission with results
+      // Update submission with final results
+      addLog(submission, `\n🎯 Judging complete!`, 'success');
+      addLog(submission, `📊 Final Verdict: ${overallStatus}`, overallStatus === 'Accepted' ? 'success' : 'error');
+      addLog(submission, `✓ Passed: ${passedTests}/${testcases.length} test cases`, 'info');
+      addLog(submission, `⏱️  Total execution time: ${totalExecutionTime}ms`, 'info');
+      
       submission.status = overallStatus;
       submission.testResults = testResults;
       submission.passedTests = passedTests;
       submission.totalExecutionTime = totalExecutionTime;
       await submission.save();
-
-      console.log(`Judging complete: ${overallStatus}, Passed: ${passedTests}/${testcases.length}`);
 
     } catch (innerError) {
       console.error('Error in test execution phase:', innerError);

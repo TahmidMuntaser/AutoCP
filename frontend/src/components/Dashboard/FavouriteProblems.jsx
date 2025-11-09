@@ -6,6 +6,7 @@ import { generateSolution as generateSolutionApi, getSolution } from '../../serv
 import { generateTestcases as generateTestcasesApi, getTestcases } from '../../services/generateTestcaseApi';
 import SolutionModal from '../Solution/SolutionModal';
 import TestcaseModal from '../Testcase/TestcaseModal';
+import { SkeletonHistoryItem } from '../Loading/SkeletonLoader';
 
 const FavouriteProblems = () => {
   const [problems, setProblems] = useState([]);
@@ -416,7 +417,13 @@ const FavouriteProblems = () => {
         </div>
 
         {/* Problems Grid */}
-        {problems.length === 0 ? (
+        {loading ? (
+          <div className="space-y-2">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <SkeletonHistoryItem key={i} />
+            ))}
+          </div>
+        ) : problems.length === 0 ? (
           <div className="bg-[#00303d]/60 backdrop-blur-xl border border-blue-500/20 rounded-2xl p-12 text-center">
             <Heart size={48} className="mx-auto text-gray-400 mb-4 opacity-50" />
             <h3 className="text-xl font-bold text-gray-300 mb-2">No Favorite Problems Yet</h3>

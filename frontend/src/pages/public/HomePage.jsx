@@ -80,22 +80,47 @@ const HomePage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <div className="min-h-screen bg-gradient-to-r from-[#002029] via-[#00303d] to-[#004052]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+          {/* Hero Section Skeleton */}
           <div className="text-center mb-16">
-            <Skeleton className="h-12 w-3/4 mx-auto mb-4 rounded-xl bg-gradient-to-r from-[#00607a] via-gray-300 to-[#00607a]" />
-            <Skeleton className="h-6 w-2/3 mx-auto mb-8 rounded-lg bg-gradient-to-r from-[#00607a] via-gray-300 to-[#00607a]" />
-            <div className="flex justify-center gap-4">
-              <Skeleton className="h-12 w-40 rounded-lg bg-gradient-to-r from-[#00607a] via-gray-300 to-[#00607a]" />
-              <Skeleton className="h-12 w-40 rounded-lg bg-gradient-to-r from-[#00607a] via-gray-300 to-[#00607a]" />
+            <div className="flex justify-center mb-6">
+              <div className="inline-flex items-center space-x-2 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full border border-white/20">
+                <Skeleton className="h-4 w-4 rounded-full" />
+                <Skeleton className="h-4 w-40 rounded" />
+              </div>
+            </div>
+            
+            <Skeleton className="h-14 w-3/4 mx-auto mb-6 rounded-xl" />
+            <Skeleton className="h-6 w-2/3 mx-auto mb-10 rounded-lg" />
+            
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Skeleton className="h-14 w-48 rounded-lg mx-auto sm:mx-0" />
+              <Skeleton className="h-14 w-40 rounded-lg mx-auto sm:mx-0" />
             </div>
           </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
+
+          {/* Stats Section Skeleton */}
+          <div className="bg-[#00607a]/30 backdrop-blur-sm border border-[#004052] rounded-2xl p-8 mb-16">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
+              {[1, 2, 3, 4].map(i => (
+                <div key={i} className="text-center">
+                  <Skeleton className="h-10 w-10 mx-auto mb-3 rounded-xl" />
+                  <Skeleton className="h-8 w-24 mx-auto mb-2 rounded" />
+                  <Skeleton className="h-4 w-20 mx-auto rounded" />
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          {/* Feature Cards Skeleton */}
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
             {[1, 2, 3, 4].map(i => (
-              <div key={i} className="bg-[#00607a] rounded-xl p-6 shadow-sm">
-                <Skeleton className="h-12 w-12 rounded-xl mb-4 bg-gradient-to-r from-white via-gray-200 to-white bg-opacity-20" />
-                <Skeleton className="h-6 w-3/4 mb-2 rounded-lg bg-gradient-to-r from-white via-gray-200 to-white bg-opacity-20" />
-                <Skeleton className="h-4 w-full rounded bg-gradient-to-r from-white via-gray-200 to-white bg-opacity-20" />
+              <div key={i} className="bg-[#00303d]/60 backdrop-blur-xl border border-[#004052] rounded-2xl p-6 shadow-sm">
+                <Skeleton className="h-14 w-14 rounded-xl mb-4" />
+                <Skeleton className="h-6 w-4/5 mb-3 rounded-lg" />
+                <Skeleton className="h-4 w-full mb-2 rounded" />
+                <Skeleton className="h-4 w-3/4 rounded" />
               </div>
             ))}
           </div>
